@@ -60,13 +60,15 @@ else
     CKPT_DIR=${CKPT_DIR%/*}
 fi
 
-for NUM_ITER in 2 4 10 16 25
+ITER=50
+
+for NUM_ITER in $ITER
 do
-    for DECODING_STRATEGY in "--decoding-strategy default" "--decoding-strategy reparam-$COND-$DETERMINISTIC-$STRATEGY"
+    for DECODING_STRATEGY in "--decoding-strategy default" 
     do
         fairseq-generate \
             $DATA_TAG \
-            --gen-subset test \
+            --gen-subset valid \
             --user-dir diffusion_mt\
             --task $TASK \
             --path $CKPT_DIR/$CKPT_NAME \
@@ -74,15 +76,17 @@ do
             --iter-decode-eos-penalty 0 \
             --iter-decode-with-beam 5 \
             --iter-decode-force-max-iter \
-            --retain-iter-history \
             --argmax-decoding $DECODING_STRATEGY \
             --load-ema-weights\
             --remove-bpe \
             --print-step \
-            --batch-size 25 $MODEL_OVERRIDE_ARGS > $CKPT_DIR/generate.out
+            --batch-size 100 $MODEL_OVERRIDE_ARGS > $CKPT_DIR/generate.out
         echo "###################### NUM_ITER: $NUM_ITER $DECODING_STRATEGY #################################"
         echo "--------------> compound split BLEU <----------------"
         bash scripts/compound_split_bleu.sh $CKPT_DIR/generate.out
         echo "###################### NUM_ITER: $NUM_ITER $DECODING_STRATEGY #################################"
     done
 done
+
+
+#"--decoding-strategy reparam-$COND-$DETERMINISTIC-$STRATEGY"

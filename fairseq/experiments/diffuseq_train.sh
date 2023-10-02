@@ -34,26 +34,25 @@ SUFFIX=${SUFFIX:-''}
 GENERATE_ONLY=${GENERATE_ONLY:-false}
 TRAIN_ONLY=${TRAIN_ONLY:-false}
 DATASET=${DATASET:-iwslt}
+DATABIN="/mnt/bn/ailab-yuningshen-psg/mlx/users/huizhuo.yuan/playground/reparam-discrete-diffusion/fairseq/data-bin/"
 
 if [[ $DATASET == "qg" ]]; then
-    DATA_TAG=data-bin/QG
+    DATA_TAG="$DATABIN/QG"
     ARCH=diffusion_transformer_qg
     NUM_GPUS=$(echo $CUDA_VISIBLE_DEVICES | awk 'BEGIN{FS=","};{print NF}')
-    UPDATE_FREQ=$(( 4 / $NUM_GPUS ))
-    DATA_SPECIFIC_ARGS="--warmup-updates 10000 --lr 0.0005 --max-update 70000 --max-sentences 64 --dropout 0.2 --update-freq $UPDATE_FREQ"
+    DATA_SPECIFIC_ARGS="--warmup-updates 10000 --lr 0.0005 --max-update 70000 --max-sentences 64 --dropout 0.2 --update-freq 1"
 elif [[ $DATASET == "qqp" ]]; then
-    DATA_TAG=data-bin/QQP
+    DATA_TAG="$DATABIN/QQP"
     ARCH=diffusion_transformer_qqp
     NUM_GPUS=$(echo $CUDA_VISIBLE_DEVICES | awk 'BEGIN{FS=","};{print NF}')
-    UPDATE_FREQ=$(( 4 / $NUM_GPUS ))
-    DATA_SPECIFIC_ARGS="--warmup-updates 10000 --lr 0.0005 --max-update 70000 --max-sentences 64 --dropout 0.2 --update-freq $UPDATE_FREQ"
+    DATA_SPECIFIC_ARGS="--warmup-updates 10000 --lr 0.0005 --max-update 70000 --max-sentences 64 --dropout 0.2 --update-freq 1"
 else
     DATA_TAG=null
 fi
 
 TASK=diffusion_translation
 CRITERION=diffusion_loss
-CKPT_DIR=checkpoints/$DATASET"_"$MODEL"_checkpoints_"$SUFFIX
+CKPT_DIR=checkpoints/$DATASET"_"$MODEL"_checkpoints_continuous_11.0"$SUFFIX
 SPECIFIC_ARGS="
     --user-dir diffusion_mt --num-diffusion-timesteps 50 --diffusion-type $MODEL $@
     "
@@ -82,10 +81,9 @@ if ! "$GENERATE_ONLY"; then
         --skip-invalid-size-inputs-valid-test \
         --log-format 'simple' --log-interval 100 --no-progress-bar \
         --fixed-validation-seed 7 \
-        --save-interval-updates 5000 \
-        --validate-interval-updates 2000 \
-        --validate-interval 10000 \
-        --keep-interval-updates 5 \
+        --save-interval-updates 1250 \
+        --validate-interval 10 \
+        --keep-interval-updates 10 \
         --keep-last-epochs 1 \
         $DATA_SPECIFIC_ARGS $SPECIFIC_ARGS
 fi

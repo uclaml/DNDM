@@ -16,7 +16,7 @@ from collections import namedtuple
 from diffusion_mt.models.diffusion_transformer_decoder import DiffusionTransformerDecoder
 from diffusion_mt.models.diffusion_transformer_encoder import DiffusionTransformerEncoder
 
-from diffusion_mt.time_sampler import UniformSampler, LossSecondMomentResampler, NoneSampler
+from diffusion_mt.time_sampler import UniformSampler, LossSecondMomentResampler, NoneSampler, ContinuousSampler
 from discrete_diffusions.absorbing_diffusion import AbsorbingDiffusion
 from discrete_diffusions.multinomial_diffusion import MultinomialDiffusion
 from discrete_diffusions.reparam_absorbing_diffusion import ReparamAbsorbingDiffusion
@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 
 DecoderOut = namedtuple(
     "DiffusionDecoderOut",
-    ["output_tokens", "output_scores", "auxiliary_output", "attn", "step", "max_step", "history"],
+    ["output_tokens", "output_scores", "auxiliary_output", "attn", "step", "max_step", "history", "sampled"],
 )
 
 @register_model("diffusion_transformer")
@@ -42,6 +42,8 @@ class DiffusionTransformerModel(FairseqNATModel):
             self.time_sampler = LossSecondMomentResampler(self.args.num_diffusion_timesteps)
         elif self.args.time_sampler_type == "none":
             self.time_sampler = NoneSampler(self.args.num_diffusion_timesteps)
+        elif self.args.time_sampler_type == "continuous":
+            self.time_sampler = ContinuousSampler(self.args.num_diffusion_timesteps)
         else:
             self.time_sampler = None
             raise NotImplementedError(f"unknown schedule sampler: {self.args.time_sampler_type}")
@@ -224,6 +226,7 @@ class DiffusionTransformerModel(FairseqNATModel):
                 t1, weight_t = self.time_sampler.sample(sample["target"].shape[0], sample["target"].device)
                 t2, _ = self.time_sampler.sample(sample["target"].shape[0], sample["target"].device)
                 x_t, x_0_ignore, mask, t = self.diffusion.q_sample_coupled(x_0=sample["target"], t1=t1, t2=t2, non_special_sym_mask=non_special_sym_mask) 
+                #print('t', t)
                 weight_t = weight_t.repeat(num_q_samples)
             elif self.args.q_sample_mode == "multi-sample":
                 rets = []
@@ -287,7 +290,7 @@ class DiffusionTransformerModel(FairseqNATModel):
             }
         else:
             raise NotImplementedError
-
+        #diffusion_dict["t"] = diffusion_dict["t"]/self.args.num_diffusion_timesteps * 1
         decoder_outputs = self.decoder(
             normalize=False,
             prev_output_tokens=diffusion_dict["x_t"],
@@ -447,6 +450,7 @@ class DiffusionTransformerModel(FairseqNATModel):
             step=0,
             max_step=0,
             history=None,
+            sampled=None,
         )
 
     def regenerate_length_beam(self, decoder_out, length_beam_size, length_within_beam=1):

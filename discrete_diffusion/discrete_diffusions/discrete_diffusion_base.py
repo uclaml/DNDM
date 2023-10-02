@@ -84,7 +84,11 @@ class DiscreteDiffusion(nn.Module):
         step_size = torch.where(t < b, _step_size + 1, _step_size)
         step = torch.where(t < b, self.num_timesteps - t * step_size, self.num_timesteps - b - t * step_size)
         return step.long(), step_size.long()
-
+    def _get_continuous_strategy(self, t, max_step, sorted, indices):
+        choice = torch.zeros([max_step]).cuda()
+        #ch = indices[max_step - t - 1:max_step]
+        choice[indices[max_step-t-1:max_step]] = 1
+        return sorted[max_step - t - 1], choice
     def _get_decoding_strategy(self, t, decoding_strategy, max_step):
         """
             This function is used to compute the step size and the number of steps
@@ -99,13 +103,13 @@ class DiscreteDiffusion(nn.Module):
                 self.step_array = np.concatenate([linear, np.floor(B + C * quad** 2)])[::-1].astype(int)
             else:
                 # t passed here ranges from 0 to max_step - 1.
-                if max_step > self.num_timesteps:
-                    raise NotImplementedError(
-                        "will run {} empty steps. "
-                        "Consider increase diffusion time-steps or decrease max_step."
-                        .format(max_step - self.num_timesteps)
-                        )
-                elif self.num_timesteps % max_step == 0:
+                # if max_step > self.num_timesteps:
+                #     raise NotImplementedError(
+                #         "will run {} empty steps. "
+                #         "Consider increase diffusion time-steps or decrease max_step."
+                #         .format(max_step - self.num_timesteps)
+                #         )
+                if self.num_timesteps % max_step == 0:
                     step_size = int(self.num_timesteps // max_step)
                     # terminates at max_step to ease computing the step_size.
                     self.step_array = np.array([(max_step - t) * step_size for t in range(max_step + 1)]).astype(int)

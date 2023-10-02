@@ -41,6 +41,19 @@ class ScheduleSampler(ABC):
         weights = th.from_numpy(weights_np).float().to(device)
         return indices, weights
 
+class ContinuousSampler(ABC):
+    def __init__(self, diffusion_steps):
+        self.diffusion_steps = diffusion_steps
+        self.weights = np.ones([self.diffusion_steps])/self.diffusion_steps 
+        #self.weights = np.ones([self.diffusion_steps])/50
+    def sample(self, batch_size, device):
+        #indices_np = np.random.uniform(0, self.diffusion_steps, size=(batch_size,))
+        indices_np = np.random.uniform(0, 1, size=(batch_size,))
+        indices = th.from_numpy(indices_np).float().to(device)
+        indices_np = np.zeros((batch_size, )).astype(int)
+        weights_np = 1 / self.weights[indices_np]
+        weights = th.from_numpy(weights_np).float().to(device)
+        return indices, weights
 
 class NoneSampler(ScheduleSampler):
     def __init__(self, diffusion_steps):

@@ -63,9 +63,9 @@ TOTAL_BEAM_SIZE=$((BEAM * LENGTH_SIZE))
 COND="uncond"
 DETERMINISTIC="stochastic5.0"
 STRATEGY="cosine"
-for NUM_ITER in 2 5 10 20 25
+for NUM_ITER in 50
 do
-    for DECODING_STRATEGY in "--decoding-strategy default" "--decoding-strategy reparam-$COND-$DETERMINISTIC-$STRATEGY"
+    for DECODING_STRATEGY in "--decoding-strategy default"
     do
         python diffusion_mt/scripts/decode_diffuseq.py  \
             $DATA_TAG \
@@ -79,7 +79,6 @@ do
             --iter-decode-with-beam $BEAM \
             --beam-within-length $LENGTH_SIZE \
             --iter-decode-force-max-iter \
-            --retain-iter-history \
             --return-all-cands --nbest $TOTAL_BEAM_SIZE \
             --temperature 0.3 $DECODING_STRATEGY \
             --load-ema-weights\

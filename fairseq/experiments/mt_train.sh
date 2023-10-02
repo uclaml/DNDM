@@ -36,30 +36,31 @@ SUFFIX=${SUFFIX:-''}
 GENERATE_ONLY=${GENERATE_ONLY:-false}
 TRAIN_ONLY=${TRAIN_ONLY:-false}
 DATASET=${DATASET:-iwslt}
+DATABIN="/mnt/bn/ailab-yuningshen-psg/mlx/users/huizhuo.yuan/playground/reparam-discrete-diffusion/fairseq/data-bin/"
 
 if [[ $DATASET == "iwslt" ]]; then
-    DATA_TAG=data-bin/iwslt14.tokenized.de-en
+    DATA_TAG="$DATABIN/iwslt14.tokenized.de-en"
     ARCH=diffusion_transformer_iwslt
-    DATA_SPECIFIC_ARGS="--warmup-updates 30000 --max-update 300000 --max-tokens 4096 --update-freq 1"
+    DATA_SPECIFIC_ARGS="--warmup-updates 30000 --max-update 100000 --max-tokens 4096 --update-freq 1"
 elif [[ $DATASET == "wmt14" ]]; then
-    DATA_TAG=data-bin/wmt14_ende
+    DATA_TAG="$DATABIN/wmt14_ende"
     ARCH=diffusion_transformer_wmt
     NUM_GPUS=$(echo $CUDA_VISIBLE_DEVICES | awk 'BEGIN{FS=","};{print NF}')
     UPDATE_FREQ=$(( 32 / $NUM_GPUS )) # maintain ~128k tokens
-    DATA_SPECIFIC_ARGS="--warmup-updates 30000 --max-update 300000 --max-tokens 4096 --update-freq $UPDATE_FREQ --dropout 0.2"
+    DATA_SPECIFIC_ARGS="--warmup-updates 30000 --max-update 80000 --max-tokens 4096 --update-freq $UPDATE_FREQ --dropout 0.2"
 elif [[ $DATASET == "wmt16" ]]; then
-    DATA_TAG=data-bin/wmt16_enro
+    DATA_TAG="$DATABIN/wmt16_enro"
     ARCH=diffusion_transformer_wmt
     NUM_GPUS=$(echo $CUDA_VISIBLE_DEVICES | awk 'BEGIN{FS=","};{print NF}')
     UPDATE_FREQ=$(( 16 / $NUM_GPUS )) # maintain ~32k tokens
-    DATA_SPECIFIC_ARGS="--warmup-updates 15000 --max-update 120000 --max-tokens 2048 --update-freq $UPDATE_FREQ"
+    DATA_SPECIFIC_ARGS="--warmup-updates 15000 --max-update 180000 --max-tokens 2048 --update-freq $UPDATE_FREQ"
 else
     DATA_TAG=null
 fi
 
 TASK=diffusion_translation
 CRITERION=diffusion_loss
-CKPT_DIR=checkpoints/$DATASET"_"$MODEL"_checkpoints_"$SUFFIX
+CKPT_DIR=checkpoints/$DATASET"_"$MODEL"_checkpoints_continuous_12.0"$SUFFIX
 SPECIFIC_ARGS="
     --user-dir diffusion_mt --num-diffusion-timesteps 50 --diffusion-type $MODEL $@
     "
@@ -84,9 +85,10 @@ if ! "$GENERATE_ONLY"; then
         --apply-bert-init \
         --log-format 'simple' --log-interval 100 --no-progress-bar \
         --fixed-validation-seed 7 \
-        --save-interval-updates 10000 \
-        --keep-interval-updates 10 \
-        --keep-last-epochs 2 \
+        --save-interval-updates 2500 \
+        --keep-interval-updates 20 \
+        --validate-interval 4 \
+        --keep-last-epochs 1 \
         $DATA_SPECIFIC_ARGS $SPECIFIC_ARGS
 fi
 

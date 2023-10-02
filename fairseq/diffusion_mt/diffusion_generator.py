@@ -5,6 +5,7 @@
 import numpy as np
 import torch
 from fairseq import utils
+from torch.distributions.beta import Beta
 
 class DiffusionGenerator(object):
     def __init__(
@@ -182,15 +183,30 @@ class DiffusionGenerator(object):
             **self.decoder_options,
             "adaptive_decoding": self.adaptive
         } 
+        N = self.max_iter 
+
+        if model.diffusion.continuous_sample == True:
+            N = prev_decoder_out.output_tokens.shape[1]
+            alphas = torch.ones(N).cuda() * 17.0
+            betas = torch.ones(N).cuda() * 4.0
+            rand_ind = (torch.rand(N)).cuda()
+            dist = Beta(alphas, betas)
+            rand_ind = dist.sample() * model.diffusion.num_timesteps
 
         # previous CMLM fairseq impl. assumes the total number of steps
         # equals max_iters + 1; fix here to avoid consfusion
-        for step in range(self.max_iter):
-
-            prev_decoder_out = prev_decoder_out._replace(
-                step=step,
-                max_step=self.max_iter,
-            )
+        for step in range(N):
+            if model.diffusion.continuous_sample == True:
+                prev_decoder_out = prev_decoder_out._replace(
+                    step=step,
+                    sampled = rand_ind,
+                    max_step=self.max_iter,
+                )
+            else:
+                prev_decoder_out = prev_decoder_out._replace(
+                    step=step,
+                    max_step=self.max_iter,
+                )
 
             decoder_out = model.forward_decoder(
                 prev_decoder_out, encoder_out, **decoder_options
@@ -213,7 +229,7 @@ class DiffusionGenerator(object):
                     decoder_out.output_tokens.size(0)
                 ).bool()
 
-            if step == (self.max_iter - 1):  # reach last iteration, terminate
+            if step == (N - 1):  # reach last iteration, terminate
                 terminated.fill_(1)
 
             # collect finalized sentences
@@ -226,8 +242,8 @@ class DiffusionGenerator(object):
                 else decoder_out.attn[terminated]
             )
 
-            if self.retain_history:
-                finalized_history_tokens = [h[terminated] for h in decoder_out.history]
+            # if self.retain_history:
+            #     finalized_history_tokens = [h[terminated] for h in decoder_out.history]
 
             for i in range(finalized_idxs.size(0)):
                 finalized[finalized_idxs[i]] = [
@@ -239,37 +255,37 @@ class DiffusionGenerator(object):
                     )
                 ]
 
-                if self.retain_history:
-                    finalized[finalized_idxs[i]][0]["history"] = []
-                    for j in range(len(finalized_history_tokens)):
-                        finalized[finalized_idxs[i]][0]["history"].append(
-                            finalized_hypos(
-                                step, finalized_history_tokens[j][i], None, None
-                            )
-                        )
+                # if self.retain_history:
+                #     finalized[finalized_idxs[i]][0]["history"] = []
+                #     for j in range(len(finalized_history_tokens)):
+                #         finalized[finalized_idxs[i]][0]["history"].append(
+                #             finalized_hypos(
+                #                 step, finalized_history_tokens[j][i], None, None
+                #             )
+                #         )
 
-            # check if all terminated
-            if terminated.sum() == terminated.size(0):
-                break
+            # # check if all terminated
+            # if terminated.sum() == terminated.size(0):
+            #     break
 
-            # for next step
-            not_terminated = ~terminated
-            prev_decoder_out = decoder_out._replace(
-                output_tokens=decoder_out.output_tokens[not_terminated],
-                output_scores=decoder_out.output_scores[not_terminated],
-                auxiliary_output={k : decoder_out.auxiliary_output[k][not_terminated] for k in decoder_out.auxiliary_output},
-                attn=decoder_out.attn[not_terminated]
-                if (decoder_out.attn is not None and decoder_out.attn.size(0) > 0)
-                else None,
-                history=[h[not_terminated] for h in decoder_out.history]
-                if decoder_out.history is not None
-                else None,
-            )
-            encoder_out = model.encoder.reorder_encoder_out(
-                encoder_out, not_terminated.nonzero(as_tuple=False).squeeze()
-            )
-            sent_idxs = sent_idxs[not_terminated]
-            prev_output_tokens = prev_decoder_out.output_tokens.clone()
+            # # for next step
+            # not_terminated = ~terminated
+            # prev_decoder_out = decoder_out._replace(
+            #     output_tokens=decoder_out.output_tokens[not_terminated],
+            #     output_scores=decoder_out.output_scores[not_terminated],
+            #     auxiliary_output={k : decoder_out.auxiliary_output[k][not_terminated] for k in decoder_out.auxiliary_output},
+            #     attn=decoder_out.attn[not_terminated]
+            #     if (decoder_out.attn is not None and decoder_out.attn.size(0) > 0)
+            #     else None,
+            #     history=[h[not_terminated] for h in decoder_out.history]
+            #     if decoder_out.history is not None
+            #     else None,
+            # )
+            # encoder_out = model.encoder.reorder_encoder_out(
+            #     encoder_out, not_terminated.nonzero(as_tuple=False).squeeze()
+            # )
+            # sent_idxs = sent_idxs[not_terminated]
+            # prev_output_tokens = prev_decoder_out.output_tokens.clone()
 
         if self.beam_size > 1:
             if reranker is not None:
