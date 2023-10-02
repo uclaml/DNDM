@@ -147,6 +147,10 @@ class ReparamMultinomialDiffusion(DiscreteDiffusion):
         self.register_buffer('log_1_min_alpha', log_1_min_alpha.float())
         self.register_buffer('log_cumprod_alpha', log_cumprod_alpha.float())
         self.register_buffer('log_1_min_cumprod_alpha', log_1_min_cumprod_alpha.float())
+        self.sample_step = self.sample_step_v8
+        if self.continuous_sample:
+            self.sample_step = self.sample_step_cont
+
 
 
     def q_sample_coupled(self, x_0, t1, t2, non_special_sym_mask):
@@ -450,7 +454,8 @@ class ReparamMultinomialDiffusion(DiscreteDiffusion):
             "weights": weight_t,
         }
         return output_dict, logging_outputs
-    def sample_step(self, decoder_out, denoising_fn, schedule_mode = "linearlambda", topk_mode = "cond", **kwargs):
+    
+    def sample_step_cont(self, decoder_out, denoising_fn, schedule_mode = "linearlambda", topk_mode = "cond", **kwargs):
         output_tokens = decoder_out.output_tokens
         output_scores = decoder_out.output_scores
         output_masks = decoder_out.auxiliary_output["output_masks"]
@@ -579,7 +584,91 @@ class ReparamMultinomialDiffusion(DiscreteDiffusion):
             history=history,
         )
           
+    def sample_step_v8(self, decoder_out, denoising_fn, topk_mode = "cond", **kwargs):
+        output_tokens = decoder_out.output_tokens
+        output_scores = decoder_out.output_scores
+        fake_t = decoder_out.step
+        max_step = decoder_out.max_step
+        Transition_time = decoder_out.history
+        unique_time = torch.unique(Transition_time)
+        sorted, indices = torch.sort(unique_time, descending=True)
+        t = sorted[fake_t]
+        Tran_al = Transition_time >= t
+        
+
+
+        argmax_decoding = kwargs.get('argmax_decoding', False)
+
+        # manually construct a non-special-sym mask.
+        non_special_sym_mask = (
+            output_tokens.ne(self.pad_id) & 
+            output_tokens.ne(self.bos_id) & 
+            output_tokens.ne(self.eos_id)
+        )
+        non_special_sym_mask = kwargs.get('non_special_sym_mask', non_special_sym_mask)
+
+
+        cur_step = (t/max_step)*self.num_timesteps
+        # cur_step_tensor = torch.full((output_tokens.shape[0],), t, device=output_tokens.device, dtype=torch.long)
+        cur_step_tensor = torch.full((output_tokens.shape[0],), cur_step, device=output_tokens.device, dtype=torch.long)
+        log_x_t = index_to_log_onehot(output_tokens, self.vocab_size) # [b, n, c]
+  
+        
+        log_x0_recon = denoising_fn(x_t=output_tokens, t=cur_step_tensor) # [b, n, c]
+        log_x0_recon = torch.log_softmax(log_x0_recon.masked_fill(self.special_sym_indicator.bool(), -30), dim=-1)
+        log_x0_recon = torch.where(non_special_sym_mask.unsqueeze(-1), log_x0_recon, log_x_t)
+
+        if argmax_decoding or True:
+          cur_scores, cur_tokens = log_x0_recon.max(-1)
+        else:
+          #zixiang:0.01 is better than argmax
+          temperature = 0.01
+          cur_tokens = dists.Categorical(logits=log_x0_recon / temperature).sample()
+          cur_scores = torch.gather(log_x0_recon, -1, cur_tokens.unsqueeze(-1)).squeeze(-1)
+
+    
+
+        if topk_mode == "real":
+          pre_Noise_index = decoder_out.auxiliary_output["output_masks"]
+          Noise_index_revised = (~Tran_al).repeat(output_scores.size(0), 1)&non_special_sym_mask
+          Mask_to_x0 = pre_Noise_index&~Noise_index_revised
+          #### Update all the transition tokens
+          output_tokens.masked_scatter_(Mask_to_x0, cur_tokens[Mask_to_x0])
+          output_scores.masked_scatter_(Mask_to_x0, cur_scores[Mask_to_x0])
+
+        elif topk_mode == "cond":
+
+          cutoff_len = (
+          ((~Tran_al)&non_special_sym_mask).sum(1, keepdim=True).type_as(output_scores)
+            ).long()
+          #Since the special_sym_mask will never transition from noise to x0, set them to be 1000 so that never get changed 
+          _scores_for_topk = cur_scores.masked_fill(~non_special_sym_mask, 1000.0)
+          Noise_index_revised = topk_masking(_scores_for_topk, cutoff_len, stochastic=False)
+          pre_Noise_index = decoder_out.auxiliary_output["output_masks"]
+          # Mask_to_x0 = ~Noise_index_revised
+          Mask_to_x0 = pre_Noise_index&~Noise_index_revised
+          # Mask_to_x0 = non_special_sym_mask&~Noise_index_revised
+
           
+          output_tokens.masked_scatter_(Mask_to_x0, cur_tokens[Mask_to_x0])
+          output_scores.masked_scatter_(Mask_to_x0, cur_scores[Mask_to_x0])
+
+       
+
+        # return output_tokens, output_scores
+        history = decoder_out.history
+        
+        auxiliary_output = decoder_out.auxiliary_output
+        auxiliary_output["output_masks"] = Noise_index_revised
+
+        return decoder_out._replace(
+            output_tokens=output_tokens,
+            output_scores=output_scores,
+            auxiliary_output=auxiliary_output,
+            attn=None,
+            history=history,
+        )
+            
 #     #Original Code      
 #     def sample_step(self, decoder_out, denoising_fn, **kwargs):
 #         output_tokens = decoder_out.output_tokens
