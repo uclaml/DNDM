@@ -107,6 +107,16 @@ class DiffusionTranslationConfig(TranslationConfig):
         metadata={"help": "Load EMA model weights for generation inference."}
     )
 
+    continuous: bool = field(
+        default=False,
+        metadata={"help": "asdasfcwda."}
+    )
+
+    continuous_sample: bool = field(
+        default=False,
+        metadata={"help": "wawawawawawawawa."}
+    )
+
 @register_task("diffusion_translation", dataclass=DiffusionTranslationConfig)
 class DiffusionTranslationTask(TranslationTask):
     """
@@ -177,6 +187,8 @@ class DiffusionTranslationTask(TranslationTask):
             "argmax_decoding": argmax_decoding,
             "temperature_annealing": temperature_annealing,
             "decoding_strategy": decoding_strategy,
+            # "continuous": getattr(args, "continuous", False),  # ADDED 2 LINES
+            # "continuous_sample": getattr(args, "continuous_sample", False),  # ADDED 2 LINES
         }
         return DiffusionGenerator(
             self.target_dictionary,
@@ -188,6 +200,8 @@ class DiffusionTranslationTask(TranslationTask):
             retain_history=getattr(args, "retain_iter_history", False),
             decoder_options=decoder_option_args,
             return_all_cands=return_all_cands,
+            continuous = getattr(args, "continuous", False),  # ADDED 2 LINES
+            continuous_sample = getattr(args, "continuous_sample", False),  # ADDED 2 LINES
         )
 
     def build_dataset_for_inference(self, src_tokens, src_lengths, constraints=None):

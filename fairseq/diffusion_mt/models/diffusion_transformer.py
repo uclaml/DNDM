@@ -6,6 +6,7 @@
 """
 This file implements diffusion translation transformers.
 """
+from itertools import filterfalse
 import torch
 import torch.nn.functional as F
 from fairseq import utils
@@ -58,6 +59,14 @@ class DiffusionTransformerModel(FairseqNATModel):
         if not hasattr(self.args, "noise_distribution"):
             self.args.noise_distribution = "uniform"
 
+        # ADDED:    
+        if not hasattr(self.args, "continuous"):
+            # assert 1 == 0
+            self.args.continuous = False
+        if not hasattr(self.args, "continuous_sample"):
+            # assert False == True
+            self.args.continuous_sample = False
+
         pad_id = self.tgt_dict.pad()
         bos_id = self.tgt_dict.bos()
         eos_id = self.tgt_dict.eos()
@@ -93,6 +102,7 @@ class DiffusionTransformerModel(FairseqNATModel):
                 pad_id, bos_id, eos_id
             )
         elif self.args.diffusion_type == 'reparam-multinomial':
+            # assert self.args.continuous_sample
             vocab_count = self.tgt_dict.count if self.args.noise_distribution == "unigram" else None
             self.diffusion = ReparamMultinomialDiffusion(
                 self.args.num_diffusion_timesteps,
@@ -103,6 +113,8 @@ class DiffusionTransformerModel(FairseqNATModel):
                 self.args.noise_distribution,
                 pad_id, bos_id, eos_id,
                 vocab_count=vocab_count,
+                continuous = self.args.continuous,
+                continuous_sample = self.args.continuous_sample,
             )
         else:
             raise NotImplementedError("Diffusion with type {} is not implemented yet.".format(self.args.diffusion_type))

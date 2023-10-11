@@ -21,7 +21,7 @@ class ReparamAbsorbingDiffusion(DiscreteDiffusion):
             not_diffusing_special_sym,
             pad_id, bos_id, eos_id,
             continuous=False,
-            continuous_sample=True,
+            continuous_sample=False,
         ):
         """
             Reparameterized absorbing diffusion impl. is very similar to that of absorbing diffusion,
@@ -38,6 +38,21 @@ class ReparamAbsorbingDiffusion(DiscreteDiffusion):
         self.num_timesteps = num_timesteps
         self.reweighting_type = reweighting_type
         self.not_diffusing_special_sym = not_diffusing_special_sym
+
+        try:
+            with open('cts_config.txt', 'r') as f:
+                s = f.read()
+                cts_config = eval(s)
+                self.continuous = cts_config['continuous']
+                self.continuous_sample = cts_config['continuous_sample']
+        except:
+            print("NO CONTINUOUS\DISCRETE CONFIG FILE (cts_config.txt) FOUND")
+            print('self.continuous: ', self.continuous)
+            print('self.continuous_sample: ', self.continuous_sample)
+
+        self.sample_step = self.sample_step_v8
+        if self.continuous_sample:
+            self.sample_step = self.sample_step_cont
 
     def q_sample_coupled(self, x_0, t1, t2, non_special_sym_mask):
         _t1 = torch.maximum(t1, t2).float().unsqueeze(-1) + 1
@@ -87,14 +102,20 @@ class ReparamAbsorbingDiffusion(DiscreteDiffusion):
         #print('_t1_t2', torch.max(_t1), torch.max(_t2))
         if self.continuous == True:
             out_t = torch.cat([_t1, _t2], dim=0).squeeze(dim=-1)
-        else:
-            out_t = torch.cat([_t1, _t2], dim=0).long().squeeze(dim=-1) - 1
+            return (torch.cat([x_t1, x_t2], dim=0), 
+                    torch.cat([x_0_ignore_t1, x_0_ignore_t2], dim=0), 
+                    torch.cat([mask_t1, mask_t2], dim=0),
+                    out_t,
+            )
+        # else:
+        #     out_t = torch.cat([_t1, _t2], dim=0).long().squeeze(dim=-1) - 1
+       
         return (torch.cat([x_t1, x_t2], dim=0), 
                 torch.cat([x_0_ignore_t1, x_0_ignore_t2], dim=0), 
                 torch.cat([mask_t1, mask_t2], dim=0),
-                out_t,
+                torch.cat([_t1, _t2], dim=0).long().squeeze(dim=-1) - 1,
         )
-
+    
     def q_sample(self, x_0, t, non_special_sym_mask):
         raise NotImplementedError
         # samples q(x_t | x_0)
@@ -164,7 +185,7 @@ class ReparamAbsorbingDiffusion(DiscreteDiffusion):
         }
         return output_dict, logging_outputs
 
-    def sample_step(self, decoder_out, denoising_fn, schedule_mode = "linearlambda", topk_mode = "cond", **kwargs):
+    def sample_step_cont(self, decoder_out, denoising_fn, schedule_mode = "linearlambda", topk_mode = "cond", **kwargs):
         output_tokens = decoder_out.output_tokens
         output_scores = decoder_out.output_scores
         t = decoder_out.step
@@ -299,6 +320,105 @@ class ReparamAbsorbingDiffusion(DiscreteDiffusion):
             history=history,
         )
 
+    def sample_step_v8(self, decoder_out, denoising_fn, topk_mode = "cond", **kwargs):  # (self, decoder_out, denoising_fn, **kwargs):
+        output_tokens = decoder_out.output_tokens
+        output_scores = decoder_out.output_scores
+        fake_t = decoder_out.step
+        max_step = decoder_out.max_step  #TODO: 注意变量名称
+        
+        Transition_time = decoder_out.history
+        unique_time = torch.unique(Transition_time)
+        sorted, indices = torch.sort(unique_time, descending=True)
+        t = sorted[fake_t]
+        Tran_al = Transition_time >= t
+
+        # temperature_annealing = kwargs.get('temperature_annealing', False)
+        # decoding_strategy = kwargs.get('decoding_strategy', "linear")
+        argmax_decoding = kwargs.get('argmax_decoding', False)
+        # decoding_time_difference = kwargs.get('decoding_time_difference', 0.0)
+        # if temperature_annealing:
+        #     temperature = -0.05 * (t / (max_step - 1)) + 0.5
+        # else:
+        #     temperature = kwargs.get('temperature', 1.0)
+
+        # cur_step, cur_stepsize = self._get_decoding_strategy(t, decoding_strategy, max_step)
+
+        cur_step = (t/max_step)*self.num_timesteps
+
+        # cur_step_tensor = torch.full((output_tokens.shape[0],), t, device=output_tokens.device, dtype=torch.long)
+        cur_step_tensor = torch.full((output_tokens.shape[0],), cur_step, device=output_tokens.device, dtype=torch.long)
+
+        # denoising_fn(x_t, t, **kwargs)
+        scores = denoising_fn(
+            x_t=output_tokens,
+            t=cur_step_tensor,
+        )
+        # redistributing probs. to avoid generating unk explicitly.
+        scores[..., self.mask_idx] = -math.inf  # apply unk penalty
+        scores = torch.log_softmax(scores, dim=-1)
+
+        # manually construct a non-special-sym mask, if not passed.
+        non_special_sym_mask = (
+            output_tokens.ne(self.pad_id) & 
+            output_tokens.ne(self.bos_id) & 
+            output_tokens.ne(self.eos_id)
+        )
+        non_special_sym_mask = kwargs.get('non_special_sym_mask', non_special_sym_mask)
+
+        log_x0_recon = scores
+        # log_x0_recon = torch.log_softmax(log_x0_recon.masked_fill(self.special_sym_indicator.bool(), -30), dim=-1)
+        # log_x0_recon = torch.where(non_special_sym_mask.unsqueeze(-1), log_x0_recon, log_x_t)
+
+        if argmax_decoding or True:
+          cur_scores, cur_tokens = log_x0_recon.max(-1)
+        else:
+          #zixiang:0.01 is better than argmax
+            temperature = 0.01
+            cur_tokens = dists.Categorical(logits=log_x0_recon / temperature).sample()
+            cur_scores = torch.gather(log_x0_recon, -1, cur_tokens.unsqueeze(-1)).squeeze(-1)
+
+        if topk_mode == "real":
+          pre_Noise_index = decoder_out.auxiliary_output["output_masks"]
+          Noise_index_revised = (~Tran_al).repeat(output_scores.size(0), 1)&non_special_sym_mask
+          Mask_to_x0 = pre_Noise_index&~Noise_index_revised
+          #### Update all the transition tokens
+          output_tokens.masked_scatter_(Mask_to_x0, cur_tokens[Mask_to_x0])
+          output_scores.masked_scatter_(Mask_to_x0, cur_scores[Mask_to_x0])
+          # output_tokens.masked_fill_(Noise_index_revised, self.mask_idx)
+          # output_scores.masked_fill_(Noise_index_revised, -math.inf)
+        elif topk_mode == "cond":
+          cutoff_len = (
+          ((~Tran_al).repeat(output_scores.size(0), 1)&non_special_sym_mask).sum(1, keepdim=True).type_as(output_scores)
+            ).long()
+          #Since the special_sym_mask will never transition from noise to x0, set them to be 1000 so that never get changed 
+          _scores_for_topk = cur_scores.masked_fill(~non_special_sym_mask, 1000.0)
+          Noise_index_revised = topk_masking(_scores_for_topk, cutoff_len, stochastic=False)
+          pre_Noise_index = decoder_out.auxiliary_output["output_masks"]
+          Mask_to_x0 = pre_Noise_index&~Noise_index_revised
+          # Mask_to_x0 = non_special_sym_mask&~Noise_index_revised
+          
+          output_tokens.masked_scatter_(Mask_to_x0, cur_tokens[Mask_to_x0])
+          output_scores.masked_scatter_(Mask_to_x0, cur_scores[Mask_to_x0])
+
+          output_tokens.masked_fill_(Noise_index_revised, self.mask_idx)
+          output_scores.masked_fill_(Noise_index_revised, -math.inf)
+
+
+        # return output_tokens, output_scores
+        history = decoder_out.history
+        # if history is not None:
+        #     history.append(output_tokens.clone())
+
+        auxiliary_output = decoder_out.auxiliary_output
+        auxiliary_output["output_masks"] = Noise_index_revised  # 以上已编辑
+
+        return decoder_out._replace(
+            output_tokens=output_tokens,
+            output_scores=output_scores,
+            auxiliary_output=auxiliary_output,
+            attn=None,
+            history=history,
+        )
     # def sample_step(self, decoder_out, denoising_fn, **kwargs):
     #     output_tokens = decoder_out.output_tokens
     #     output_scores = decoder_out.output_scores

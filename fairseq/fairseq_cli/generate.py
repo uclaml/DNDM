@@ -95,6 +95,10 @@ def _load_model_ensemble_with_ema(
 
 def main(cfg: DictConfig):
 
+    cts_config = {'continuous': cfg.continuous, 'continuous_sample': cfg.continuous_sample}
+    with open('cts_config.txt', 'w') as target:
+        target.write(str(cts_config))
+
     if isinstance(cfg, Namespace):
         cfg = convert_namespace_to_omegaconf(cfg)
 

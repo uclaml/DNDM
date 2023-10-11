@@ -21,9 +21,8 @@ import logging
 from discrete_diffusions.utils import (
     topk_masking
 )
-
+from torch.nn.modules.module import T
 logger = logging.getLogger(__name__)
-
 
 def exists(x):
     return x is not None
@@ -37,6 +36,7 @@ def default(val, d):
     if exists(val):
         return val
     return d() if isfunction(d) else d
+
 def get_named_alpha_schedule(timesteps, name='cosine', alpha_min=0.001, alpha_max=1.):
     if name == 'linear':
         alphas_cumprod = np.linspace(1, 0., timesteps + 1)
@@ -94,8 +94,8 @@ class ReparamMultinomialDiffusion(DiscreteDiffusion):
             noise_distribution,
             pad_id, bos_id, eos_id,
             vocab_count=None,
-            continuous=True,
-            continuous_sample=True,
+            continuous=False,
+            continuous_sample=False,
         ):
         super().__init__(num_timesteps)
         self.num_timesteps = num_timesteps
@@ -147,6 +147,18 @@ class ReparamMultinomialDiffusion(DiscreteDiffusion):
         self.register_buffer('log_1_min_alpha', log_1_min_alpha.float())
         self.register_buffer('log_cumprod_alpha', log_cumprod_alpha.float())
         self.register_buffer('log_1_min_cumprod_alpha', log_1_min_cumprod_alpha.float())
+
+        try:
+            with open('cts_config.txt', 'r') as f:
+                s = f.read()
+                cts_config = eval(s)
+                self.continuous = cts_config['continuous']
+                self.continuous_sample = cts_config['continuous_sample']
+        except:
+            print("NO CONTINUOUS\DISCRETE CONFIG FILE (cts_config.txt) FOUND")
+            print('self.continuous: ', self.continuous)
+            print('self.continuous_sample: ', self.continuous_sample)
+
         self.sample_step = self.sample_step_v8
         if self.continuous_sample:
             self.sample_step = self.sample_step_cont
@@ -454,7 +466,14 @@ class ReparamMultinomialDiffusion(DiscreteDiffusion):
             "weights": weight_t,
         }
         return output_dict, logging_outputs
-    
+
+    # def sample_step(self, decoder_out, denoising_fn, **kwargs):
+    #     # continuous = kwargs.get('continuous', self.continuous)
+    #     continuous_sample = kwargs.get('continuous_sample', self.continuous_sample)
+    #     if continuous_sample:
+    #         return self.sample_step_cont(decoder_out, denoising_fn, **kwargs)
+    #     return self.sample_step_v8(decoder_out, denoising_fn, **kwargs)
+
     def sample_step_cont(self, decoder_out, denoising_fn, schedule_mode = "linearlambda", topk_mode = "cond", **kwargs):
         output_tokens = decoder_out.output_tokens
         output_scores = decoder_out.output_scores
@@ -583,7 +602,7 @@ class ReparamMultinomialDiffusion(DiscreteDiffusion):
             attn=None,
             history=history,
         )
-          
+
     def sample_step_v8(self, decoder_out, denoising_fn, topk_mode = "cond", **kwargs):
         output_tokens = decoder_out.output_tokens
         output_scores = decoder_out.output_scores
