@@ -22,6 +22,7 @@ class ReparamAbsorbingDiffusion(DiscreteDiffusion):
             pad_id, bos_id, eos_id,
             continuous=False,
             continuous_sample=False,
+            not_topk=False,
         ):
         """
             Reparameterized absorbing diffusion impl. is very similar to that of absorbing diffusion,
@@ -35,6 +36,7 @@ class ReparamAbsorbingDiffusion(DiscreteDiffusion):
         self.mask_idx = mask_id
         self.continuous = continuous
         self.continuous_sample = continuous_sample
+        self.not_topk = not_topk
         self.num_timesteps = num_timesteps
         self.reweighting_type = reweighting_type
         self.not_diffusing_special_sym = not_diffusing_special_sym
@@ -45,11 +47,17 @@ class ReparamAbsorbingDiffusion(DiscreteDiffusion):
                 cts_config = eval(s)
                 self.continuous = cts_config['continuous']
                 self.continuous_sample = cts_config['continuous_sample']
+                self.not_topk = cts_config['not_topk']
         except:
             print("NO CONTINUOUS\DISCRETE CONFIG FILE (cts_config.txt) FOUND")
             print('self.continuous: ', self.continuous)
             print('self.continuous_sample: ', self.continuous_sample)
+            print('self.not_topk: ', self.not_topk)
 
+        self.topk_mode = 'cond'
+        if self.not_topk:
+            self.topk_mode = 'real'
+        
         self.sample_step = self.sample_step_v8
         if self.continuous_sample:
             self.sample_step = self.sample_step_cont
@@ -185,7 +193,8 @@ class ReparamAbsorbingDiffusion(DiscreteDiffusion):
         }
         return output_dict, logging_outputs
 
-    def sample_step_cont(self, decoder_out, denoising_fn, schedule_mode = "linearlambda", topk_mode = "cond", **kwargs):
+    def sample_step_cont(self, decoder_out, denoising_fn, schedule_mode = "linearlambda", **kwargs):
+        topk_mode = self.topk_mode
         output_tokens = decoder_out.output_tokens
         output_scores = decoder_out.output_scores
         t = decoder_out.step
@@ -320,7 +329,8 @@ class ReparamAbsorbingDiffusion(DiscreteDiffusion):
             history=history,
         )
 
-    def sample_step_v8(self, decoder_out, denoising_fn, topk_mode = "cond", **kwargs):  # (self, decoder_out, denoising_fn, **kwargs):
+    def sample_step_v8(self, decoder_out, denoising_fn, **kwargs):  # (self, decoder_out, denoising_fn, **kwargs):
+        topk_mode = self.topk_mode
         output_tokens = decoder_out.output_tokens
         output_scores = decoder_out.output_scores
         fake_t = decoder_out.step

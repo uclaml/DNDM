@@ -66,6 +66,18 @@ class DiffusionTransformerModel(FairseqNATModel):
         if not hasattr(self.args, "continuous_sample"):
             # assert False == True
             self.args.continuous_sample = False
+        # if not hasattr(self.args, "alpha"):
+        #     # assert 1 == 0
+        #     self.args.alpha = 3
+        # if not hasattr(self.args, "beta"):
+        #     # assert False == True
+        #     self.args.beta = 3
+        # if not hasattr(self.args, "schedule"):
+        #     # assert 1 == 0
+        #     self.args.schedule = "Beta"
+        if not hasattr(self.args, "not_topk"):
+            # assert False == True
+            self.args.not_topk = False
 
         pad_id = self.tgt_dict.pad()
         bos_id = self.tgt_dict.bos()
@@ -99,7 +111,10 @@ class DiffusionTransformerModel(FairseqNATModel):
                 self.tgt_dict.unk(), 
                 self.args.reweighting_type,
                 self.args.not_diffusing_special_sym,
-                pad_id, bos_id, eos_id
+                pad_id, bos_id, eos_id,
+                continuous = self.args.continuous,
+                continuous_sample = self.args.continuous_sample,
+                not_topk = self.args.not_topk,
             )
         elif self.args.diffusion_type == 'reparam-multinomial':
             # assert self.args.continuous_sample
@@ -115,6 +130,7 @@ class DiffusionTransformerModel(FairseqNATModel):
                 vocab_count=vocab_count,
                 continuous = self.args.continuous,
                 continuous_sample = self.args.continuous_sample,
+                not_topk = self.args.not_topk,
             )
         else:
             raise NotImplementedError("Diffusion with type {} is not implemented yet.".format(self.args.diffusion_type))

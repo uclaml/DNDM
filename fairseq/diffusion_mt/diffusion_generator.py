@@ -5,8 +5,8 @@
 import numpy as np
 import torch
 from fairseq import utils
-from torch.distributions.beta import Beta
-from scipy.stats import beta
+from torch.distributions.beta import Beta  # for discrete-time sampling
+from scipy.stats import beta  # for continuous-time sampling
 
 
 class Schedule:
@@ -104,6 +104,10 @@ class DiffusionGenerator(object):
         return_all_cands=False,
         continuous=False,  # ADDED
         continuous_sample=False,  # ADDED
+        alpha=3,  # ADDED
+        beta=3,  # ADDED
+        schedule = 'Beta',  # ADDED
+        not_topk=False
     ):
         """
         Generates translations based on reverse diffusion processes.
@@ -137,6 +141,10 @@ class DiffusionGenerator(object):
 
         self.continuous = continuous
         self.continuous_sample = continuous_sample
+        self.alpha = alpha
+        self.beta = beta
+        self.schedule = schedule
+        self.not_topk = not_topk
 
         self.generate = self.generate_v8
         if continuous_sample:
@@ -500,7 +508,8 @@ class DiffusionGenerator(object):
         N = prev_decoder_out.output_tokens.shape[1]
         T = self.max_iter
         ####Get transition time 
-        schedule = "Beta"
+        # schedule = "Beta"
+        schedule = self.schedule
         if schedule == "linear_lambda":
           Transition_time = Schedule.linear_lambda(N,T).cuda()
         elif schedule == "linear_alpha":
@@ -511,7 +520,8 @@ class DiffusionGenerator(object):
           # ###Greate for 1000 step
           # Transition_time = Schedule.Beta(N,T,17,4).cuda()
           ##Greate for 50 step
-          Transition_time = Schedule.Beta(N,T,2,2).cuda()
+          # Transition_time = Schedule.Beta(N,T,2,2).cuda()
+          Transition_time = Schedule.Beta(N,T,self.alpha,self.beta).cuda()
         else:
           raise NotImplementedError
         ### Remove duplicates

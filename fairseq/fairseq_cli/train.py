@@ -41,6 +41,12 @@ from fairseq.trainer import Trainer
 
 
 def main(cfg: FairseqConfig) -> None:
+
+    cts_config = {'continuous': cfg.task.continuous, 'continuous_sample': cfg.task.continuous_sample, 
+                  'alpha': cfg.task.alpha, 'beta': cfg.task.beta, 'schedule': cfg.task.schedule, 'not_topk': cfg.task.not_topk}
+    with open('cts_config.txt', 'w') as target:
+        target.write(str(cts_config))
+
     if isinstance(cfg, argparse.Namespace):
         cfg = convert_namespace_to_omegaconf(cfg)
 

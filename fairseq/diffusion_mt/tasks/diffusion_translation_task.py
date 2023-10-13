@@ -109,12 +109,32 @@ class DiffusionTranslationConfig(TranslationConfig):
 
     continuous: bool = field(
         default=False,
-        metadata={"help": "asdasfcwda."}
+        metadata={"help": "Whether to use continuous time for training."}
     )
 
     continuous_sample: bool = field(
         default=False,
-        metadata={"help": "wawawawawawawawa."}
+        metadata={"help": "Whether to use continuous time when sampling."}
+    )
+
+    alpha: int = field(
+        default=3,
+        metadata={"help": "The alpha value for discrete sampling with Beta schedule."}
+    )
+
+    beta: int = field(
+        default=3,
+        metadata={"help": "The beta value for discrete sampling with Beta schedule."}
+    )
+
+    schedule: str = field(
+        default="Beta",
+        metadata={"help": "The schedule for timestemps for discrete sampling."}
+    )
+
+    not_topk: bool = field(
+        default=False,
+        metadata={"help": "Whether to disable the top-k mode."}
     )
 
 @register_task("diffusion_translation", dataclass=DiffusionTranslationConfig)
@@ -190,6 +210,25 @@ class DiffusionTranslationTask(TranslationTask):
             # "continuous": getattr(args, "continuous", False),  # ADDED 2 LINES
             # "continuous_sample": getattr(args, "continuous_sample", False),  # ADDED 2 LINES
         }
+        try:
+            with open('cts_config.txt', 'r') as f:
+                s = f.read()
+                cts_config = eval(s)
+                continuous = cts_config['continuous']
+                continuous_sample = cts_config['continuous_sample']
+                alpha = cts_config['alpha']
+                beta = cts_config['beta']
+                schedule = cts_config['schedule']
+                not_topk = cts_config['not_topk']
+        except:
+            print("NO CONTINUOUS\DISCRETE CONFIG FILE (cts_config.txt) FOUND")
+            continuous = False
+            continuous_sample = False
+            alpha = 3
+            beta = 3
+            schedule = "Beta"
+            not_topk = False
+
         return DiffusionGenerator(
             self.target_dictionary,
             max_iter=getattr(args, "iter_decode_max_iter", 10),
@@ -200,8 +239,12 @@ class DiffusionTranslationTask(TranslationTask):
             retain_history=getattr(args, "retain_iter_history", False),
             decoder_options=decoder_option_args,
             return_all_cands=return_all_cands,
-            continuous = getattr(args, "continuous", False),  # ADDED 2 LINES
-            continuous_sample = getattr(args, "continuous_sample", False),  # ADDED 2 LINES
+            continuous = getattr(args, "continuous", continuous),  # ADDED 6 LINES
+            continuous_sample = getattr(args, "continuous_sample", continuous_sample),
+            alpha = getattr(args, "alpha", alpha),
+            beta = getattr(args, "beta", beta),
+            schedule = getattr(args, "schdule", schedule),
+            not_topk = getattr(args, "not_topk", not_topk),  # ADDED 6 LINES
         )
 
     def build_dataset_for_inference(self, src_tokens, src_lengths, constraints=None):
