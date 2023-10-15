@@ -1,6 +1,10 @@
-# A Reparameterized Discrete Diffusion Model for Text Generation
+# Pytorch Implementation of Discrete Non-Markov Diffusion Model (DNDM)
 
-This repository contains the official implementation of paper [A Reparameterized Discrete Diffusion Model for Text Generation](https://arxiv.org/abs/2302.05737).
+This repository contains the official implementation of paper Fast Sampling via De-randomization for Discrete Diffusion Models.
+
+## Abstract
+
+Diffusion models have emerged as powerful tools for high-quality data generation, such as image generation. Despite its success in continuous spaces, discrete diffusion models, which apply to domains such as texts and natural languages, remain under-studied and often suffer from slow generation speed. In this paper, we propose a novel de-randomized diffusion process, which leads to an accelerated algorithm for discrete diffusion models.  Our technique significantly reduces the number of function evaluations (i.e., calls to the score network), making the sampling process much faster. Furthermore, we introduce a continuous-time (i.e., infinite-step) sampling algorithm that can provide even better sample qualities than its discrete-time (finite-step) counterpart. Extensive experiments on natural language generation and machine translation tasks demonstrate the superior performance of our method in terms of both generation speed and sample quality over existing methods for discrete diffusion models.
 
 ## Dependencies
 
