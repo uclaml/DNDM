@@ -8,23 +8,24 @@ Diffusion models have emerged as powerful tools for high-quality data generation
 
 ## Dependencies
 
-The codebase is implemented with [FairSeq](https://github.com/facebookresearch/fairseq). To install the dependencies, run (recommended in a [virtual environment](https://docs.python.org/3/library/venv.html)) the following commands:
+The codebase is implemented with [FairSeq](https://github.com/facebookresearch/fairseq). 
+This repo is confirmed to work with Python 3.8.10.
+For installing the necessary packages for our code, please run the following commands in this order:
 
 ```bash
-pip install -r requirements.txt
+pip install -r requirements1.txt
 
-# install our package of discrete diffusion models
+# Following https://github.com/HKUNLP/reparam-discrete-diffusion/
 pip install -e discrete_diffusion
-
-# install our fork of fairseq
 cd fairseq
-python3 setup.py build develop
+python3 setup.py build develop  # install the freezed version of fairseq
 cd ..
+
+pip install -r requirements2.txt  # Overwriting some package versions
+pip install omegaconf==2.1.1  # This package has to be installed separately after hydra-core
 ```
 
-> **Note**
-> The environment is tested with Python 3.8.10, PyTorch 1.10.0/1.12.0, and CUDA 11.3.
-> Also note our fork of fairseq modifies several files in the original codebase; using more recent versions of fairseq might lead to unexpected dependency conflicts.
+
 
 ## Basic Usage of the Discrete-diffusion Library
 We implement discrete diffusion models in a self-contained library `discrete_diffusion` for general use. The library provides implementations of various typical discrete diffusion models, consisting of
@@ -145,11 +146,8 @@ See the [implementation](./discrete_diffusion/discrete_diffusions/discrete_diffu
 
 ## Machine Translation
 
-### Data Preprocessing
-Please see the scripts below for details.
-
-> **Note**
-> - Note that all tasks considered in this work operate on the original data and do **not** adopt Knowledge Distillation (KD).
+### Datasets for Maching Translation Tasks
+The three datasets can be easily processed before training and evaluation:
 
 #### IWSLT14 DE-EN
 We follow the standard pre-processing in [fairseq/examples](https://github.com/facebookresearch/fairseq/tree/main/examples/translation#iwslt14-german-to-english-transformer) to prepare the binarized data:
@@ -183,6 +181,7 @@ fairseq-preprocess --joined-dictionary \
 #### WMT16 EN-RO
 For this dataset, we use the raw data [wmt16.tar.gz](https://drive.google.com/file/d/1YrAwCEuktG-iDVxtEW-FE72uFTLc5QMl/view?usp=sharing) as pre-processed in [this repository](https://github.com/nyu-dl/dl4mt-nonauto/tree/multigpu).
 ```bash
+gdown --fuzzy https://drive.google.com/file/d/1YrAwCEuktG-iDVxtEW-FE72uFTLc5QMl/view?usp=sharing
 tar xzvf wmt16.tar.gz
 
 TEXT=wmt16/en-ro
@@ -202,6 +201,7 @@ fairseq-preprocess --joined-dictionary \
     --destdir data-bin/wmt16_enro --thresholdtgt 0 --thresholdsrc 0 \
     --workers 20
 ```
+
 ### Training
 We first get into the `fairseq` folder and then run the following commands to train the models.
 ```bash
