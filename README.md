@@ -146,8 +146,7 @@ A more advanced decoding approach can be invoked by passing `--decoding-strategy
 See the [implementation](./discrete_diffusion/discrete_diffusions/discrete_diffusion_base.py#L130) for more details about the options.
 
 ## Miscellanous
-The code is built upon [https://github.com/HKUNLP/reparam-discrete-diffusion](https://github.com/HKUNLP/reparam-discrete-diffusion). More information about the code, such as data preprocessing
-can be found in the above repo.
+The code is built upon [https://github.com/HKUNLP/reparam-discrete-diffusion](https://github.com/HKUNLP/reparam-discrete-diffusion). More information about the code, such as data preprocessing can be found in the above repo.
 
 
 ## Machine Translation
@@ -161,30 +160,32 @@ CUDA_VISIBLE_DEVICES=0 bash experiments/mt_generate.sh -a false -c <checkpoint_p
 
 Arguments:
 - `-a`: whether to average the last 5 saved checkpoints after training
-- `-i`: indicates the number of diffusion steps in the samping process (default 1000).
-- `-e`: indicates the end of the script-level arguments.
-The following custom arguments can be passed after `-e True` for both training and testing:
+- `-a`: the path to saved model checkpoint file (if `-a True`, the directory of the saved models) 
+- `-i`: indicating the number of diffusion steps in the samping process (default 1000).
+- `-e`: indicating the end of the script-level arguments.
+The following custom arguments can be passed after `-e True` for both sampling and training:
 - `--continuous`: to enable continuous timesteps (without this argument we are using the discrete accelerated reverse sampling model).
 - `--continuous-sample`: to enable continuous timesteps for sampling, including validation (will not work if the model is trained without `--continuous`).
-- `--alpha`: indicates the alpha value for the Beta distribution used for discrete sampling (default 3).
-- `--beta`: indicates the alpha value for the Beta distribution used for discrete sampling (default 3).
-- `--schedule`: indicates the schedule for timesteps in discrete accelerated reverse sampling.
+- `--alpha`: for discrete sampling, indicating the alpha value for the Beta distribution schedule; for continuous sampling, indicating the alpha value of the Beta distribution from which the transition timestamps are sampled (default 3);
+- `--beta`: for discrete sampling, indicating the beta value for the Beta distribution schedule; for continuous sampling, indicating the beta value of the Beta distribution from which the transition timestamps are sampled (default 3);
+- `--schedule`: indicating the schedule for timesteps in discrete accelerated reverse sampling.
         The best schedule we have explored is 'Beta', so it is also the default.
         The other supported schedules: 'linear_lambda', 'linear_alpha', and 'cosine'.
-- `--not-topk`: indicates whether to disable the top-k transition time selection (default False).
+- `--not-topk`: indicating whether to disable the top-k transition time selection (default False).
 
-When trying to acquire the sampling results of **DNDM-Multi** with continuous timesteps on the IWSLT14 dataset:
+For example, when trying to acquire the sampling results of **DNDM-Multi** (without top-k) with continuous timesteps on the IWSLT14 dataset (with timestamps sampled from Beta(17,4) as reported):
 ```bash
-CUDA_VISIBLE_DEVICES=0 bash experiments/mt_generate.sh -a false -c <checkpoint_path> -d wmt -e True --continuous --continuous-sample --not-topk
+CUDA_VISIBLE_DEVICES=0 bash experiments/mt_generate.sh -a false -c <checkpoint_path> -d wmt -e True --continuous --continuous-sample --alpha 17 --beta 4 --not-topk
 ```
-For example, when trying to acquire the sampling results of **DNDM-k-Absorb** at 1000 steps on the WMT16 dataset(with schedule Beta(15, 7) as reported in the appendix):
+
+When trying to acquire the sampling results of **DNDM-k-Absorb** at 1000 steps on the WMT16 dataset(with schedule Beta(15,7) as reported):
 ```bash
 CUDA_VISIBLE_DEVICES=0 bash experiments/mt_generate.sh -a false -c <checkpoint_path> -d wmt -i 1000 -e True --alpha 15 --beta 7 --schedule Beta
 ```
 
+For the sampling processes of discrete **DNDM** with or without top-k transition time selection, the results can be replicated using the trained model checkpoints provided by [https://github.com/HKUNLP/reparam-discrete-diffusion](https://github.com/HKUNLP/reparam-discrete-diffusion) (the links to the Reparam-multinomial and Reparam-absorbing models within the README).
 
-
-The dataset information is stored in the saved checkpoints of the trained models, so it is only necessary to specify the dataset during training. 
+If you want to try the continuous **DNDM-C** (with or without top-k) sampling, it is necessary to train a new model with "--continuous" and "--continuous-sample". For training either the continuous **DNDM-C** or the discrete **DNDM** from scratch, please refer to the following subsection.
 
 ### Training
 We first get into the `fairseq` folder and then run the following commands to train the models. Basic usages:
@@ -193,8 +194,7 @@ We first get into the `fairseq` folder and then run the following commands to tr
 CUDA_VISIBLE_DEVICES=2 bash experiments/mt_train.sh -m reparam-absorbing -d <iwslt/wmt14/wmt16> -s default -e True --q-sample-mode coupled  --store-ema --label-smoothing 0.1 --reweighting-type linear
 CUDA_VISIBLE_DEVICES=3 bash experiments/mt_train.sh -m reparam-multinomial -d <iwslt/wmt14/wmt16> -s default -e True --not-diffusing-special-sym --q-sample-mode coupled --store-ema --label-smoothing 0.1 --reweighting-type linear
 ```
-> **Note**
-> - `-s <str>` is used to specify the name of the experiment.
+The additional custom arguments available to be passed after `-e True` is the same as the Sampling section above.
 
 
 

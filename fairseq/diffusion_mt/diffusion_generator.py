@@ -285,8 +285,8 @@ class DiffusionGenerator(object):
 
         if model.diffusion.continuous_sample == True:
             N = prev_decoder_out.output_tokens.shape[1]
-            alphas = torch.ones(N).cuda() * 17.0
-            betas = torch.ones(N).cuda() * 4.0
+            alphas = torch.ones(N).cuda() * float(self.alpha)  # torch.ones(N).cuda() * 17.0
+            betas = torch.ones(N).cuda() * float(self.beta)  # torch.ones(N).cuda() * 4.0
             rand_ind = (torch.rand(N)).cuda()
             dist = Beta(alphas, betas)
             rand_ind = dist.sample() * model.diffusion.num_timesteps
