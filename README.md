@@ -10,6 +10,7 @@ Diffusion models have emerged as powerful tools for high-quality data generation
 
 This project uses an older version of [FairSeq](https://github.com/facebookresearch/fairseq). 
 This repo is confirmed to work with Python 3.8.10.
+
 For installing the necessary packages for our code, please run the following commands in this order:
 
 ```bash
@@ -145,7 +146,7 @@ A more advanced decoding approach can be invoked by passing `--decoding-strategy
 See the [implementation](./discrete_diffusion/discrete_diffusions/discrete_diffusion_base.py#L130) for more details about the options.
 
 ## Miscellanous
-The code is built upon [https://github.com/dtsip/in-context-learning](https://github.com/HKUNLP/reparam-discrete-diffusion). More information about the code, such as data preprocessing
+The code is built upon [https://github.com/HKUNLP/reparam-discrete-diffusion](https://github.com/HKUNLP/reparam-discrete-diffusion). More information about the code, such as data preprocessing
 can be found in the above repo.
 
 
@@ -167,20 +168,31 @@ Arguments:
 - `-d`: the dataset name
 
 ### Training
-We first get into the `fairseq` folder and then run the following commands to train the models.
+We first get into the `fairseq` folder and then run the following commands to train the models. Basic usages:
 ```bash
 ######## training scripts for IWSLT'14 , WMT'14, and WMT'16 
-# first cd to fairseq
-# we use 1 GPU for IWSLT'14, 4 GPUs for WMT'14 and 2 GPUs for WMT'16 datasets respectively.
-CUDA_VISIBLE_DEVICES=0 bash experiments/mt_train.sh -m absorbing -d <iwslt/wmt14/wmt16> -s default -e True --store-ema --label-smoothing 0.1
-CUDA_VISIBLE_DEVICES=1 bash experiments/mt_train.sh -m multinomial -d <iwslt/wmt14/wmt16> -s default -e True --not-diffusing-special-sym --store-ema --label-smoothing 0.0
 CUDA_VISIBLE_DEVICES=2 bash experiments/mt_train.sh -m reparam-absorbing -d <iwslt/wmt14/wmt16> -s default -e True --q-sample-mode coupled  --store-ema --label-smoothing 0.1 --reweighting-type linear
 CUDA_VISIBLE_DEVICES=3 bash experiments/mt_train.sh -m reparam-multinomial -d <iwslt/wmt14/wmt16> -s default -e True --not-diffusing-special-sym --q-sample-mode coupled --store-ema --label-smoothing 0.1 --reweighting-type linear
 ```
-
 > **Note**
 > - `-s <str>` is used to specify the name of the experiment.
-> - We could pass custom arguments that might be specific to training by appending them after `-e True`.
+
+### Generating
+We first get into the `fairseq` folder and then run the following commands to train the models. Basic usages:
+```bash
+######## testing scripts
+CUDA_VISIBLE_DEVICES=2 bash experiments/mt_generate.sh -a false -c <checkpoint_path> -d iwslt -e True
+```
+
+The following custom arguments can be passed after `-e True` for both training and testing:
+- `--continuous`: to enable continuous timesteps (without this argument we are using the discrete accelerated reverse sampling model)
+- `--continuous-sample`: to enable continuous timesteps for sampling, including validation (will not work if the model is trained without `--continuous`)
+- `--alpha`: indicates the alpha value for the Beta distribution used for discrete sampling (default 3)
+- `--beta`: indicates the alpha value for the Beta distribution used for discrete sampling (default 3)
+- `--schedule`: indicates the schedule for timesteps in discrete accelerated reverse sampling
+        The best schedule we have explored is 'Beta', so it is also the default.
+        The other supported schedules: 'linear_lambda', 'linear_alpha', and 'cosine'.
+- `--not-topk`: indicates whether to disable the top-k transition time selection (default False)
 
 
 
