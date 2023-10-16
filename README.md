@@ -253,60 +253,6 @@ We also provide the checkpoints of our trained models.
 | WMT'16 | Reparam-absorbing | [link](https://connecthkuhk-my.sharepoint.com/:f:/g/personal/linzheng_connect_hku_hk/Ep5D3LYr7FJLiWOrPbm3T3YBWtloPcdlNOmh5k9nM6CuzA?e=7pC43S) |
 
 
-## Question Generation and Paraphrasing Tasks
-We follow the experimental setup in [DiffuSeq](https://github.com/Shark-NLP/DiffuSeq) for **question generation** and **paraphrasing** tasks . 
-
-### Data Preprocessing
-The raw data of these two tasks can be fetched from the original [DiffuSeq repository](https://github.com/Shark-NLP/DiffuSeq). We then binarize the data via the provided [script](./fairseq/diffusion_mt/scripts/preprocess_diffuseq_datasets.sh).
-```bash
-# put the raw data in the directory ``diffuseq_data/QG``
-# Preprocess the question generation dataset
-bash diffusion_mt/scripts/preprocess_diffuseq_datasets.sh QG
-
-# put the raw data in the directory ``diffuseq_data/QQP``
-# Preprocess the paraphrasing dataset
-bash diffusion_mt/scripts/preprocess_diffuseq_datasets.sh QQP
-```
-
-### Training
-```bash
-# QQP or QG datasets
-# first cd to fairseq
-CUDA_VISIBLE_DEVICES=0,1 bash experiments/diffuseq_train.sh -m absorbing -d <qqp/qg> -s default -e True --store-ema --label-smoothing 0.1
-CUDA_VISIBLE_DEVICES=2,3 bash experiments/diffuseq_train.sh -m multinomial -d <qqp/qg> -s default -e True      --not-diffusing-special-sym --store-ema --label-smoothing 0.0 
-CUDA_VISIBLE_DEVICES=0,1 bash experiments/diffuseq_train.sh -m reparam-multinomial -d <qqp/qg> -s default -e True  --not-diffusing-special-sym  --q-sample-mode coupled --store-ema --label-smoothing 0.1 --reweighting-type linear
-CUDA_VISIBLE_DEVICES=2,3 bash experiments/diffuseq_train.sh -m reparam-absorbing -d <qqp/qg> -s default -e True      --q-sample-mode coupled --store-ema --label-smoothing 0.1 --reweighting-type linear 
-```
-
-### Generation & Evaluation
-We closely follow the generation & evaluation protocols as in [DiffuSeq](https://github.com/Shark-NLP/DiffuSeq) to ensure a head-to-head comparison. The whole pipeline is re-implemented in `fairseq/diffusion_mt/scripts/decode_diffuseq.py` and `fairseq/diffusion_mt/scripts/eval_diffuseq.py` respectively to be compatible with Fairseq. Run the following commands:
-
-```bash
-# we recommend putting each checkpoint into a separate folder
-# since the script will put the decoded results into a file under the same folder of each checkpoint.
-CUDA_VISIBLE_DEVICES=0 bash experiments/diffuseq_generate.sh -a false -b true -c <checkpoint_path> -d <qqp/qg> 
-```
-Arguments:
-- `-a`: whether to average multiple checkpoints
-- `-b`: whether to use multiple samples for MBR decoding
-- `-c`: indicates the location of the checkpoint. If `-a false` (not to average checkpoints), pass the checkpoint **path**; if `-a true`, pass the **directory** that stores multiple checkpoints at different training steps for averaging.
-- `-d`: the dataset name
-
-### Trained Model Checkpoints
-
-We also provide the checkpoints of our trained models.
-
-| Dataset | Model | Checkpoint link |
-| --- | --- | :---: |
-| QG | Multinomial | [link](https://connecthkuhk-my.sharepoint.com/:f:/g/personal/linzheng_connect_hku_hk/Emd5ffawQspMjWJWx8zZwkQB7No7IaSd8Qplrt9BCPY0TA?e=CIwVRV) |
-| QG | Absorbing | [link](https://connecthkuhk-my.sharepoint.com/:f:/g/personal/linzheng_connect_hku_hk/EuyHs9y3FjNNoMbNOJ1-MmcBm6wOQnbx8y0FIAF8XL2MiQ?e=X1ppCz) |
-| QG | Reparam-multinomial | [link](https://connecthkuhk-my.sharepoint.com/:f:/g/personal/linzheng_connect_hku_hk/EuxVOlwZhwlAjwhHRtmDe0gBrxnKVwb55FrV3QCdDOn4gw?e=TONFwu) |
-| QG | Reparam-absorbing | [link](https://connecthkuhk-my.sharepoint.com/:f:/g/personal/linzheng_connect_hku_hk/EtnPOo43IQxOrOByjPcpYCMBMOapyD7ofB4X65AvnFQAig?e=quKftB) |
-| QQP | Multinomial | [link](https://connecthkuhk-my.sharepoint.com/:f:/g/personal/linzheng_connect_hku_hk/Ela7hbH1bDhAmr8DIS-OlW8BTYSJZSDBX-0OPBQfTNR-Aw?e=otYfxF) |
-| QQP | Absorbing | [link](https://connecthkuhk-my.sharepoint.com/:f:/g/personal/linzheng_connect_hku_hk/EsYmGzUB2wlNkcSYvQsGqnYB8C7lqHgo4v5EBoHcuijAgg?e=NigcIV) |
-| QQP | Reparam-multinomial | [link](https://connecthkuhk-my.sharepoint.com/:f:/g/personal/linzheng_connect_hku_hk/EkM39SCwpFBJnqU0_FPCldYBmt0Bs_FswRzl1NLCfR_h0w?e=ZuVOBn) |
-| QQP | Reparam-absorbing | [link](https://connecthkuhk-my.sharepoint.com/:f:/g/personal/linzheng_connect_hku_hk/EgbniUZ31zxJmx2adZjjOxwBt7brEs3oJbEBwqtPgvDwRA?e=DuwIMF) |
-
 ## Citation
 ```bibtex
 @article{zheng2023rdm,
