@@ -151,21 +151,7 @@ can be found in the above repo.
 
 
 ## Machine Translation
-The three datasets including IWLS'14, WMT'14, and WMT'16 datasets, can be used for generation and training. Remember to process the data first.
-### Generation & Evaluation
-The evaluation pipeline is handled by `experiments/mt_generate.sh`. The script will generate the translation results and evaluate the BLEU score.
-```bash
-########### IWLS'14, WMT'14, and WMT'16 datasets
-# we recommend putting each checkpoint into a separate folder
-# since the script will put the decoded results into a file under the same folder of each checkpoint.
-CUDA_VISIBLE_DEVICES=0 bash experiments/mt_generate.sh -a false -c <checkpoint_path> -d <iwslt/wmt14/wmt16> 
-```
-Arguments:
-- `-a`: whether to average multiple checkpoints
-- `-c`: indicates the location of the checkpoint.
-        If `-a false` (not to average checkpoints), pass the checkpoint **path**; 
-        if `-a true`, pass the **directory** that stores multiple checkpoints at different training steps for averaging.
-- `-d`: the dataset name
+The three datasets, including IWLS'14, WMT'14, and WMT'16 datasets, can be used for generation and training. Remember to process the data first.
 
 ### Training
 We first get into the `fairseq` folder and then run the following commands to train the models. Basic usages:
