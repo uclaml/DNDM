@@ -144,63 +144,27 @@ A more advanced decoding approach can be invoked by passing `--decoding-strategy
 
 See the [implementation](./discrete_diffusion/discrete_diffusions/discrete_diffusion_base.py#L130) for more details about the options.
 
+## Miscellanous
+The code is built upon [https://github.com/dtsip/in-context-learning](https://github.com/HKUNLP/reparam-discrete-diffusion). More information about the code, such as data preprocessing
+can be found in the above repo.
+
+
 ## Machine Translation
-
-### Datasets for Maching Translation Tasks
-The three datasets can be easily processed before training and evaluation:
-
-#### IWSLT14 DE-EN
-We follow the standard pre-processing in [fairseq/examples](https://github.com/facebookresearch/fairseq/tree/main/examples/translation#iwslt14-german-to-english-transformer) to prepare the binarized data:
+The three datasets including IWLS'14, WMT'14, and WMT'16 datasets, can be used for generation and training. Remember to process the data first.
+### Generation & Evaluation
+The evaluation pipeline is handled by `experiments/mt_generate.sh`. The script will generate the translation results and evaluate the BLEU score.
 ```bash
-# fetch and preprocess the data to BPE codes
-cd examples/translation/
-bash prepare-iwslt14.sh
-cd ../..
-
-# binarize the data
-TEXT=examples/translation/iwslt14.tokenized.de-en
-fairseq-preprocess --joined-dictionary --source-lang de --target-lang en \
-    --trainpref $TEXT/train --validpref $TEXT/valid --testpref $TEXT/test \
-    --destdir data-bin/iwslt14.tokenized.de-en \
-    --workers 20
+########### IWLS'14, WMT'14, and WMT'16 datasets
+# we recommend putting each checkpoint into a separate folder
+# since the script will put the decoded results into a file under the same folder of each checkpoint.
+CUDA_VISIBLE_DEVICES=0 bash experiments/mt_generate.sh -a false -c <checkpoint_path> -d <iwslt/wmt14/wmt16> 
 ```
-
-#### WMT14 EN-DE
-We use the data released in [fairseq/examples](https://github.com/facebookresearch/fairseq/tree/main/examples/nonautoregressive_translation#dataset) to prepare the dataset:
-```bash
-wget http://dl.fbaipublicfiles.com/nat/original_dataset.zip
-unzip original_dataset.zip
-TEXT=wmt14_ende
-fairseq-preprocess --joined-dictionary \
-    --source-lang en --target-lang de \
-    --trainpref $TEXT/train.en-de --validpref $TEXT/valid.en-de --testpref $TEXT/test.en-de \
-    --destdir data-bin/wmt14_ende --thresholdtgt 0 --thresholdsrc 0 \
-    --workers 20
-```
-
-#### WMT16 EN-RO
-For this dataset, we use the raw data [wmt16.tar.gz](https://drive.google.com/file/d/1YrAwCEuktG-iDVxtEW-FE72uFTLc5QMl/view?usp=sharing) as pre-processed in [this repository](https://github.com/nyu-dl/dl4mt-nonauto/tree/multigpu).
-```bash
-gdown --fuzzy https://drive.google.com/file/d/1YrAwCEuktG-iDVxtEW-FE72uFTLc5QMl/view?usp=sharing
-tar xzvf wmt16.tar.gz
-
-TEXT=wmt16/en-ro
-
-# move train/ dev/ test/ bpe codes into the $TEXT folder
-mv $TEXT/train/corpus.bpe.en $TEXT/train.bpe.en
-mv $TEXT/train/corpus.bpe.ro $TEXT/train.bpe.ro
-mv $TEXT/dev/dev.bpe.en $TEXT/dev.bpe.en
-mv $TEXT/dev/dev.bpe.ro $TEXT/dev.bpe.ro
-mv $TEXT/test/test.bpe.en $TEXT/test.bpe.en
-mv $TEXT/test/test.bpe.ro $TEXT/test.bpe.ro
-
-# binarize the data
-fairseq-preprocess --joined-dictionary \
-    --source-lang en --target-lang ro \
-    --trainpref $TEXT/train.bpe --validpref $TEXT/dev.bpe --testpref $TEXT/test.bpe \
-    --destdir data-bin/wmt16_enro --thresholdtgt 0 --thresholdsrc 0 \
-    --workers 20
-```
+Arguments:
+- `-a`: whether to average multiple checkpoints
+- `-c`: indicates the location of the checkpoint.
+        If `-a false` (not to average checkpoints), pass the checkpoint **path**; 
+        if `-a true`, pass the **directory** that stores multiple checkpoints at different training steps for averaging.
+- `-d`: the dataset name
 
 ### Training
 We first get into the `fairseq` folder and then run the following commands to train the models.
@@ -218,47 +182,7 @@ CUDA_VISIBLE_DEVICES=3 bash experiments/mt_train.sh -m reparam-multinomial -d <i
 > - `-s <str>` is used to specify the name of the experiment.
 > - We could pass custom arguments that might be specific to training by appending them after `-e True`.
 
-### Generation & Evaluation
-The evaluation pipeline is handled by `experiments/mt_generate.sh`. The script will generate the translation results and evaluate the BLEU score.
-```bash
-########### IWLS'14, WMT'14, and WMT'16 datasets
-# we recommend putting each checkpoint into a separate folder
-# since the script will put the decoded results into a file under the same folder of each checkpoint.
-CUDA_VISIBLE_DEVICES=0 bash experiments/mt_generate.sh -a false -c <checkpoint_path> -d <iwslt/wmt14/wmt16> 
-```
-Arguments:
-- `-a`: whether to average multiple checkpoints
-- `-c`: indicates the location of the checkpoint.
-        If `-a false` (not to average checkpoints), pass the checkpoint **path**; 
-        if `-a true`, pass the **directory** that stores multiple checkpoints at different training steps for averaging.
-- `-d`: the dataset name
-
-### Trained Model Checkpoints
-
-We also provide the checkpoints of our trained models.
-
-| Dataset | Model | Checkpoint link |
-| --- | --- | :---: |
-| IWSLT'14 | Multinomial | [link](https://connecthkuhk-my.sharepoint.com/:f:/g/personal/linzheng_connect_hku_hk/EpAzao9L5XBMsef5LNZ1iXkB36Mp9V2gQGOwbopgPaOTVA?e=OraA81) |
-| IWSLT'14 | Absorbing | [link](https://connecthkuhk-my.sharepoint.com/:f:/g/personal/linzheng_connect_hku_hk/Eg1tqijPqkpNvc0Lai-BDE0Btc8L4UIJ-7oedCp4MXDPKw?e=liuASC) |
-| IWSLT'14 | Reparam-multinomial | [link](https://connecthkuhk-my.sharepoint.com/:f:/g/personal/linzheng_connect_hku_hk/EmCnWDgoj8JKmji1QE8UlkMB-3ow1aI8Bdo78-C7LqU_hA?e=DNahYn) |
-| IWSLT'14 | Reparam-absorbing | [link](https://connecthkuhk-my.sharepoint.com/:f:/g/personal/linzheng_connect_hku_hk/EmvmYZemCIRMsKQF-GNitzQB1lRUYj5MSow9jyxHZ4BCUg?e=nS81rB) |
-| WMT'14 | Multinomial | [link](https://connecthkuhk-my.sharepoint.com/:f:/g/personal/linzheng_connect_hku_hk/Ehgx0Ur0fbdJgY0zreg4KbABrN21txHM-sisbR9xZ6unDQ?e=T1vnJL) |
-| WMT'14 | Absorbing | [link](https://connecthkuhk-my.sharepoint.com/:f:/g/personal/linzheng_connect_hku_hk/EtO0Hft6GmhKogahr4V1hnQB4Odt5MUcjSUXawg_lH_0wg?e=Ikzs3R) |
-| WMT'14 | Reparam-multinomial | [link](https://connecthkuhk-my.sharepoint.com/:f:/g/personal/linzheng_connect_hku_hk/EtfgIjc9g2tEh3F9IpcvFoUBmIkcihy_tpVezr845fEDtQ?e=uTYJYF) |
-| WMT'14 | Reparam-absorbing | [link](https://connecthkuhk-my.sharepoint.com/:f:/g/personal/linzheng_connect_hku_hk/EniOmBTtL2dDtk1GNBw-kg4BsJ3SWTGmGASNdjRjSCP27w?e=Ona4qx) |
-| WMT'16 | Multinomial | [link](https://connecthkuhk-my.sharepoint.com/:f:/g/personal/linzheng_connect_hku_hk/EiBNFip8De5Nk-kimmyQ3UYBftUH3Cz74RsiA9IfoIryBQ?e=tzswtp) |
-| WMT'16 | Absorbing | [link](https://connecthkuhk-my.sharepoint.com/:f:/g/personal/linzheng_connect_hku_hk/EiFkp1Ros4VCsl4w-Feez7oB_h2zLEV61dHwsaFGxk7ioQ?e=96xT6h) |
-| WMT'16 | Reparam-multinomial | [link](https://connecthkuhk-my.sharepoint.com/:f:/g/personal/linzheng_connect_hku_hk/Em4byDij7zJIl1SY6nIcVeABbAEQZvsb1O8LdlS4i6t92A?e=0QQZaA) |
-| WMT'16 | Reparam-absorbing | [link](https://connecthkuhk-my.sharepoint.com/:f:/g/personal/linzheng_connect_hku_hk/Ep5D3LYr7FJLiWOrPbm3T3YBWtloPcdlNOmh5k9nM6CuzA?e=7pC43S) |
 
 
-## Citation
-```bibtex
-@article{zheng2023rdm,
-  title={A Reparameterized Discrete Diffusion Model for Text Generation},
-  author={Zheng, Lin and Yuan, Jianbo and Yu, Lei and Kong, Lingpeng},
-  journal={arXiv preprint arXiv:2302.05737},
-  year={2023}
-}
-```
+
+
