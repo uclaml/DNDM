@@ -153,6 +153,39 @@ can be found in the above repo.
 ## Machine Translation
 The three datasets, including IWLS'14, WMT'14, and WMT'16 datasets, can be used for generation and training. Remember to process the data first.
 
+### Generating
+We first get into the `fairseq` folder and then run the following commands to train the models. Basic usages:
+```bash
+CUDA_VISIBLE_DEVICES=0 bash experiments/mt_generate.sh -a false -c <checkpoint_path> -d <iwslt/wmt14/wmt16> -e True
+```
+
+Arguments:
+- `-a`: whether to average the last 5 saved checkpoints after training
+- `-i`: indicates the number of diffusion steps in the samping process (default 1000).
+- `-e`: indicates the end of the script-level arguments.
+The following custom arguments can be passed after `-e True` for both training and testing:
+- `--continuous`: to enable continuous timesteps (without this argument we are using the discrete accelerated reverse sampling model).
+- `--continuous-sample`: to enable continuous timesteps for sampling, including validation (will not work if the model is trained without `--continuous`).
+- `--alpha`: indicates the alpha value for the Beta distribution used for discrete sampling (default 3).
+- `--beta`: indicates the alpha value for the Beta distribution used for discrete sampling (default 3).
+- `--schedule`: indicates the schedule for timesteps in discrete accelerated reverse sampling.
+        The best schedule we have explored is 'Beta', so it is also the default.
+        The other supported schedules: 'linear_lambda', 'linear_alpha', and 'cosine'.
+- `--not-topk`: indicates whether to disable the top-k transition time selection (default False).
+
+When trying to acquire the sampling results of **DNDM-Multi** with continuous timesteps on the IWSLT14 dataset:
+```bash
+CUDA_VISIBLE_DEVICES=0 bash experiments/mt_generate.sh -a false -c <checkpoint_path> -d wmt -e True --continuous --continuous-sample --not-topk
+```
+For example, when trying to acquire the sampling results of **DNDM-k-Absorb** at 1000 steps on the WMT16 dataset(with schedule Beta(15, 7) as reported in the appendix):
+```bash
+CUDA_VISIBLE_DEVICES=0 bash experiments/mt_generate.sh -a false -c <checkpoint_path> -d wmt -i 1000 -e True --alpha 15 --beta 7 --schedule Beta
+```
+
+
+
+The dataset information is stored in the saved checkpoints of the trained models, so it is only necessary to specify the dataset during training. 
+
 ### Training
 We first get into the `fairseq` folder and then run the following commands to train the models. Basic usages:
 ```bash
@@ -163,22 +196,6 @@ CUDA_VISIBLE_DEVICES=3 bash experiments/mt_train.sh -m reparam-multinomial -d <i
 > **Note**
 > - `-s <str>` is used to specify the name of the experiment.
 
-### Generating
-We first get into the `fairseq` folder and then run the following commands to train the models. Basic usages:
-```bash
-######## testing scripts
-CUDA_VISIBLE_DEVICES=2 bash experiments/mt_generate.sh -a false -c <checkpoint_path> -d iwslt -e True
-```
-
-The following custom arguments can be passed after `-e True` for both training and testing:
-- `--continuous`: to enable continuous timesteps (without this argument we are using the discrete accelerated reverse sampling model)
-- `--continuous-sample`: to enable continuous timesteps for sampling, including validation (will not work if the model is trained without `--continuous`)
-- `--alpha`: indicates the alpha value for the Beta distribution used for discrete sampling (default 3)
-- `--beta`: indicates the alpha value for the Beta distribution used for discrete sampling (default 3)
-- `--schedule`: indicates the schedule for timesteps in discrete accelerated reverse sampling
-        The best schedule we have explored is 'Beta', so it is also the default.
-        The other supported schedules: 'linear_lambda', 'linear_alpha', and 'cosine'.
-- `--not-topk`: indicates whether to disable the top-k transition time selection (default False)
 
 
 
