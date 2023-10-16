@@ -8,7 +8,7 @@ Diffusion models have emerged as powerful tools for high-quality data generation
 
 ## Dependencies
 
-The codebase is implemented with [FairSeq](https://github.com/facebookresearch/fairseq). 
+This project uses an older version of [FairSeq](https://github.com/facebookresearch/fairseq). 
 This repo is confirmed to work with Python 3.8.10.
 For installing the necessary packages for our code, please run the following commands in this order:
 
@@ -28,9 +28,9 @@ pip install omegaconf==2.1.1  # This package has to be installed separately afte
 
 
 ## Basic Usage of the Discrete-diffusion Library
-We implement discrete diffusion models in a self-contained library `discrete_diffusion` for general use. The library provides implementations of various typical discrete diffusion models, consisting of
-- `(Vanilla/Reparameterized) multinomial diffusion`: diffusion processes that inject `uniform` noise to the token sequence. The implementation of vanilla multinomial diffusion closely follows the [codebase](https://github.com/ehoogeboom/multinomial_diffusion) of the original paper;
-- `(Vanilla/Reparameterized) absorbing diffusion`: diffusion processes where tokens within the sequence could get absorbed to the `masking` state, as described in the [D3PM paper](https://arxiv.org/pdf/2107.03006.pdf).
+
+The code is built based on https://github.com/dtsip/in-context-learning. 
+For details about the the Discrete-diffusion Library, information can be found in the above repo.
 
 
 <details>
