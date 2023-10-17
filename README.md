@@ -93,7 +93,7 @@ For the sampling processes of discrete **DNDM** with or without top-k transition
 
 
 ### Training
-In this subsection, we introduce training a discrete diffusion model and a continuous **DNDM-C** model. If you want to try the continuous **DNDM-C** (with or without top-k) sampling, a  continuous **DNDM-C** model will generally give a better result. To train the continuous **DNDM-C** model from scratch,  the argument "--continuous" and "--continuous-sample" is needed. If you want a discrete diffusion model, the arguments "--continuous" and "--continuous-sample" need to be removed.
+In this subsection, we introduce training a discrete diffusion model and a continuous **DNDM-C** model. If you want to try the continuous **DNDM-C** (with or without top-k) sampling, The results of training with **DNDM-C** model can be found in G.2 of our supplementary material. To train the continuous **DNDM-C** model from scratch,  the argument "--continuous" and "--continuous-sample" is needed. If you want a discrete diffusion model, the arguments "--continuous" and "--continuous-sample" need to be removed.
 
 Basic usages for training the continuous **DNDM-C** model: we first get into the `fairseq` folder and then run the following commands:
 ```bash
