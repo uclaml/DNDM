@@ -1,6 +1,6 @@
 # Pytorch Implementation of Discrete Non-Markov Diffusion Model (DNDM)
 
-This repository contains the official implementation of paper Fast Sampling via De-randomization for Discrete Diffusion Models.
+This repository contains the official implementation of the paper Fast Sampling via De-randomization for Discrete Diffusion Models.
 
 ## Abstract
 
@@ -11,7 +11,7 @@ Diffusion models have emerged as powerful tools for high-quality data generation
 This project uses an older version of [FairSeq](https://github.com/facebookresearch/fairseq). 
 This repo is confirmed to work with Python 3.8.10.
 
-For installing the necessary packages for our code, please run the following commands in this order:
+To install the necessary packages for our code, please run the following commands in this order:
 
 ```bash
 pip install -r requirements1.txt
@@ -19,7 +19,7 @@ pip install -r requirements1.txt
 # Following https://github.com/HKUNLP/reparam-discrete-diffusion/
 pip install -e discrete_diffusion
 cd fairseq
-python3 setup.py build develop  # install the freezed version of fairseq
+python3 setup.py build develop  # install the frozen version of fairseq
 cd ..
 
 pip install -r requirements2.txt  # Overwriting some package versions
@@ -55,18 +55,18 @@ CUDA_VISIBLE_DEVICES=0 bash experiments/mt_generate.sh -a false -c <checkpoint_p
 ```
 
 Arguments:
-- `-a`: whether to average the last 5 saved checkpoints after training (Default is false especially if the checkpoint is loaded)
-- `-c`: the path to saved model checkpoint file (if `-a True`, the directory of the saved models) 
-- `-i`: indicating the number of diffusion steps in the samping process (default 1000).
+- `-a`: whether to average the last 5 saved checkpoints after training (Default is false, especially if the checkpoint is loaded)
+- `-c`: the path to the saved model checkpoint file (if `-a True`, the directory of the saved models) 
+- `-i`: indicating the number of diffusion steps in the sampling process (default 1000).
 - `-e`: indicating the end of the script-level arguments.
 The following custom arguments can be passed after `-e True` for both sampling and training:
-- `--continuous`: to enable continuous timesteps (without this argument we are using the discrete accelerated reverse sampling model).
+- `--continuous`: to enable continuous timesteps (without this argument, we are using the discrete accelerated reverse sampling model).
 - `--continuous-sample`: to enable continuous timesteps for sampling, including validation (will not work if the model is trained without `--continuous`).
 - `--alpha`: for discrete sampling, indicating the alpha value for the Beta distribution schedule; for continuous sampling, indicating the alpha value of the Beta distribution from which the transition timestamps are sampled (default 3);
 - `--beta`: for discrete sampling, indicating the beta value for the Beta distribution schedule; for continuous sampling, indicating the beta value of the Beta distribution from which the transition timestamps are sampled (default 3);
 - `--schedule`: indicating the schedule for timesteps in discrete accelerated reverse sampling.
         The best schedule we have explored is 'Beta', so it is also the default.
-        The other supported schedules: 'linear_lambda', 'linear_alpha', and 'cosine'.
+        The other supported schedules: are 'linear_lambda', 'linear_alpha', and 'cosine'.
 - `--not-topk`: indicating whether to disable the top-k transition time selection (default False).
 
 For example, when trying to acquire the sampling results of **DNDM-Multi** (without top-k) with continuous timesteps on the IWSLT14 dataset (with timestamps sampled from Beta(17,4) as reported):
@@ -81,16 +81,18 @@ CUDA_VISIBLE_DEVICES=0 bash experiments/mt_generate.sh -a false -c <checkpoint_p
 
 For the sampling processes of discrete **DNDM** with or without top-k transition time selection, the results can be replicated using the trained model checkpoints provided by [https://github.com/HKUNLP/reparam-discrete-diffusion](https://github.com/HKUNLP/reparam-discrete-diffusion) (the links to the Reparam-multinomial and Reparam-absorbing models within the README).
 
-If you want to try the continuous **DNDM-C** (with or without top-k) sampling, it is necessary to train a new model with "--continuous" and "--continuous-sample". For training either the continuous **DNDM-C** or the discrete **DNDM** from scratch, please refer to the following subsection.
 
 ### Training
-We first get into the `fairseq` folder and then run the following commands to train the models. Basic usages:
+In this subsection, we introduce training a discrete diffusion model and a continuous **DNDM-C** model. If you want to try the continuous **DNDM-C** (with or without top-k) sampling, a  continuous **DNDM-C** model will generally give a better result. To train the continuous **DNDM-C** model from scratch,  the argument "--continuous" and "--continuous-sample" is needed. If you want a discrete diffusion model the arguments "--continuous" and "--continuous-sample" need to be removed.
+
+We first get into the `fairseq` folder and then run the following commands to train the models. Basic usages for the continuous **DNDM-C** model are as follows:
 ```bash
 ######## training scripts for IWSLT'14 , WMT'14, and WMT'16 
-CUDA_VISIBLE_DEVICES=2 bash experiments/mt_train.sh -m reparam-absorbing -d <iwslt/wmt14/wmt16> -s default -e True --q-sample-mode coupled  --store-ema --label-smoothing 0.1 --reweighting-type linear
-CUDA_VISIBLE_DEVICES=3 bash experiments/mt_train.sh -m reparam-multinomial -d <iwslt/wmt14/wmt16> -s default -e True --not-diffusing-special-sym --q-sample-mode coupled --store-ema --label-smoothing 0.1 --reweighting-type linear
+CUDA_VISIBLE_DEVICES=2 bash experiments/mt_train.sh -m reparam-absorbing -d <iwslt/wmt14/wmt16> -s default -e True  --continuous --continuous-sample --q-sample-mode coupled  --store-ema --label-smoothing 0.1 --reweighting-type linear
+CUDA_VISIBLE_DEVICES=3 bash experiments/mt_train.sh -m reparam-multinomial -d <iwslt/wmt14/wmt16> -s default -e True  --continuous --continuous-sample --not-diffusing-special-sym --q-sample-mode coupled --store-ema --label-smoothing 0.1 --reweighting-type linear
 ```
-The additional custom arguments available to be passed after `-e True` is the same as the Sampling section above.
+
+The additional custom arguments available to be passed after `-e True` are the same as the Sampling section above.
 
 
 
