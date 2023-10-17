@@ -89,11 +89,31 @@ When trying to acquire the sampling results of **DNDM-k-Absorb** at 1000 steps o
 CUDA_VISIBLE_DEVICES=0 bash experiments/mt_generate.sh -a false -c <checkpoint_path> -d wmt -i 1000 -e True --alpha 15 --beta 7 --schedule Beta
 ```
 
+For discrete sampling, our `--alpha` and `--beta` values selected using validation sets are listed as following:
+
+| Datasets and Models | alpha | beta |
+|---------------------|-------|------|
+| IWSLT14 with RMD    | 17    | 5    |
+| IWSLT14 with RAD    | 5     | 3    |
+| WMT14 with RMD      | 5     | 3    |
+| WMT14 with RAD      | 3     | 3    |
+| WMT16 with RMD      | 17    | 7    |
+| WMT16 with RAD      | 20    | 5    |
+
+For continuous sampling, our `--alpha` and `--beta` values selected using validation sets are listed as following:
+
+| Datasets | alpha | beta |
+|----------|-------|------|
+| IWSLT14  | 17    | 4    |
+| WMT14    | 100   | 4    |
+| WMT16    | 100   | 4    |
+
+
 For the sampling processes of discrete **DNDM** with or without top-k transition time selection, the results can be replicated using the trained model checkpoints provided by [https://github.com/HKUNLP/reparam-discrete-diffusion](https://github.com/HKUNLP/reparam-discrete-diffusion) (the links to the Reparam-multinomial and Reparam-absorbing models within the README).
 
 
 ### Training
-In this subsection, we introduce training a discrete diffusion model and a continuous **DNDM-C** model. If you want to try the continuous **DNDM-C** (with or without top-k) sampling, The results of training with **DNDM-C** model can be found in G.2 of our supplementary material. To train the continuous **DNDM-C** model from scratch,  the argument "--continuous" and "--continuous-sample" is needed. If you want a discrete diffusion model, the arguments "--continuous" and "--continuous-sample" need to be removed.
+In this subsection, we introduce training a discrete diffusion model and a continuous **DNDM-C** model. If you want to try the continuous **DNDM-C** (with or without top-k) sampling, The results of training with **DNDM-C** model can be found in G.2 of our supplementary material. To train the continuous **DNDM-C** model from scratch,  the arguments "--continuous" and "--continuous-sample" are needed. If you want a discrete diffusion model, the arguments "--continuous" and "--continuous-sample" need to be removed.
 
 Basic usages for training the continuous **DNDM-C** model: we first get into the `fairseq` folder and then run the following commands:
 ```bash
