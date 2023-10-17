@@ -29,19 +29,29 @@ pip install omegaconf==2.1.1  # This package has to be installed separately afte
 
 
 ## Basic Usage of the Discrete-diffusion
-The code is built upon [https://github.com/HKUNLP/reparam-discrete-diffusion](https://github.com/HKUNLP/reparam-discrete-diffusion). More information about the code, such as data preprocessing can be found in the above repo.
+The code is built upon [https://github.com/HKUNLP/reparam-discrete-diffusion](https://github.com/HKUNLP/reparam-discrete-diffusion). More information about the code, such as data preprocessing, can be found in the above repo.
 
-#### Vanilla Sampling Scheme
-By passing `--decoding-strategy default`, the vanilla sampling scheme (specific to each discrete diffusion process) is used.
+#### Countionous (Infinite) and Discrete (Finite) Timesteps
+- To enable the continuous timesteps in generation (or training), both the `--continuous` and `--continuous-sample` arguments must be included. 
 
-#### Improved Sampling with Reparameterization
-A more advanced decoding approach can be invoked by passing `--decoding-strategy reparam-<conditioning-of-v>-<topk_mode>-<schedule>`. This approach is based on the proposed reparameterization in our paper and allows for more effective decoding procedures. The options specify the decoding algorithm via
-- `<conditioning-of-v>`: `uncond` or `cond` (default `uncond`): whether to generate the routing variable $v_t$ in a conditional or unconditional manner;
-- `<topk_mode>`: `stochastic<float>` or `deterministic` (default `deterministic`): whether to use stochastic or deterministic top-$k$ selection. The float value in `stochastic<float>` specifies the degree of randomness in the stochastic top-$k$ selection;
-- `<schedule>`: `linear` or `cosine` (default `cosine`): the schedule for $k$ during our denoising procedure, which is used to control the number of top-$k$ tokens to be denoised for the next decoding step.
+- To enable the discrete timesteps, both the `--continuous` and `--continuous-sample` arguments must be removed. `-i` is used to indicate the number of diffusion steps in the sampling process (default 1000).
 
-See the [implementation](./discrete_diffusion/discrete_diffusions/discrete_diffusion_base.py#L130) for more details about the options.
 
+
+#### Top-k decoding 
+Instead of directly determining which token gets updated by drawing transition time, we can employ a two-step process: first generate the number of tokens that transit from noise to x0, then determine those tokens according to the score network.
+
+By default, the top-k decoding is enabled. To disable the top-k decoding please use the following argument:
+
+- `--not-topk`: indicating whether to disable the top-k transition time selection (default False).
+
+#### Schedule
+The best schedule we have explored is 'Beta,' which is also the default. To beta schedule is parameterized by two parameters $\alpha$ and $\beta$, i.e., $Beta(\alpha, \beta)$:
+
+- `--alpha`: for discrete sampling, indicating the alpha value for the Beta distribution schedule; for continuous sampling, indicating the alpha value of the Beta distribution from which the transition timestamps are sampled (default 3);
+- `--beta`: for discrete sampling, indicating the beta value for the Beta distribution schedule; for continuous sampling, indicating the beta value of the Beta distribution from which the transition timestamps are sampled (default 3);
+
+We also support other schedules. To use them, please use `--schedule` followed by 'linear_lambda', 'linear_alpha', or 'cosine'.
 
 
 
