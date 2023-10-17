@@ -265,7 +265,7 @@ class ReparamAbsorbingDiffusion(DiscreteDiffusion):
         if argmax_decoding or True:
           cur_scores, cur_tokens = log_x0_recon.max(-1)
         else:
-          #zixiang:0.01 is better than argmax
+          # 0.01 is better than argmax
           temperature = 0.01
           cur_tokens = dists.Categorical(logits=log_x0_recon / temperature).sample()
           cur_scores = torch.gather(log_x0_recon, -1, cur_tokens.unsqueeze(-1)).squeeze(-1)
@@ -382,7 +382,7 @@ class ReparamAbsorbingDiffusion(DiscreteDiffusion):
         if argmax_decoding or True:
           cur_scores, cur_tokens = log_x0_recon.max(-1)
         else:
-          #zixiang:0.01 is better than argmax
+          # 0.01 is better than argmax
             temperature = 0.01
             cur_tokens = dists.Categorical(logits=log_x0_recon / temperature).sample()
             cur_scores = torch.gather(log_x0_recon, -1, cur_tokens.unsqueeze(-1)).squeeze(-1)

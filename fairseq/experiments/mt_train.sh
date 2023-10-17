@@ -36,7 +36,7 @@ SUFFIX=${SUFFIX:-''}
 GENERATE_ONLY=${GENERATE_ONLY:-false}
 TRAIN_ONLY=${TRAIN_ONLY:-false}
 DATASET=${DATASET:-iwslt}
-DATABIN="/mnt/bn/ailab-yuningshen-psg/mlx/users/huizhuo.yuan/playground/reparam-discrete-diffusion/fairseq/data-bin/"
+DATABIN="data-bin"
 
 if [[ $DATASET == "iwslt" ]]; then
     DATA_TAG="$DATABIN/iwslt14.tokenized.de-en"
@@ -88,7 +88,7 @@ if ! "$GENERATE_ONLY"; then
         --save-interval-updates 2500 \
         --keep-interval-updates 20 \
         --validate-interval 4 \
-        --keep-last-epochs 1 \
+        --keep-last-epochs 2 \
         $DATA_SPECIFIC_ARGS $SPECIFIC_ARGS
 fi
 

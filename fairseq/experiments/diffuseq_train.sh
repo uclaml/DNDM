@@ -34,7 +34,7 @@ SUFFIX=${SUFFIX:-''}
 GENERATE_ONLY=${GENERATE_ONLY:-false}
 TRAIN_ONLY=${TRAIN_ONLY:-false}
 DATASET=${DATASET:-iwslt}
-DATABIN="/mnt/bn/ailab-yuningshen-psg/mlx/users/huizhuo.yuan/playground/reparam-discrete-diffusion/fairseq/data-bin/"
+DATABIN="data-bin"
 
 if [[ $DATASET == "qg" ]]; then
     DATA_TAG="$DATABIN/QG"
