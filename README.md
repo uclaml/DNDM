@@ -83,9 +83,9 @@ For the sampling processes of discrete **DNDM** with or without top-k transition
 
 
 ### Training
-In this subsection, we introduce training a discrete diffusion model and a continuous **DNDM-C** model. If you want to try the continuous **DNDM-C** (with or without top-k) sampling, a  continuous **DNDM-C** model will generally give a better result. To train the continuous **DNDM-C** model from scratch,  the argument "--continuous" and "--continuous-sample" is needed. If you want a discrete diffusion model the arguments "--continuous" and "--continuous-sample" need to be removed.
+In this subsection, we introduce training a discrete diffusion model and a continuous **DNDM-C** model. If you want to try the continuous **DNDM-C** (with or without top-k) sampling, a  continuous **DNDM-C** model will generally give a better result. To train the continuous **DNDM-C** model from scratch,  the argument "--continuous" and "--continuous-sample" is needed. If you want a discrete diffusion model, the arguments "--continuous" and "--continuous-sample" need to be removed.
 
-We first get into the `fairseq` folder and then run the following commands to train the models. Basic usages for the continuous **DNDM-C** model are as follows:
+Basic usages for training the continuous **DNDM-C** model: we first get into the `fairseq` folder and then run the following commands:
 ```bash
 ######## training scripts for IWSLT'14 , WMT'14, and WMT'16 
 CUDA_VISIBLE_DEVICES=2 bash experiments/mt_train.sh -m reparam-absorbing -d <iwslt/wmt14/wmt16> -s default -e True  --continuous --continuous-sample --q-sample-mode coupled  --store-ema --label-smoothing 0.1 --reweighting-type linear
