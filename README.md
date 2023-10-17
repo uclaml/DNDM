@@ -28,111 +28,8 @@ pip install omegaconf==2.1.1  # This package has to be installed separately afte
 
 
 
-## Basic Usage of the Discrete-diffusion Library
-
-The code is built based on https://github.com/dtsip/in-context-learning. 
-For details about the the Discrete-diffusion Library, information can be found in the above repo.
-
-
-<details>
-  <summary> click to check the implementation details as well as their arguments 👇 </summary>
-
-These diffusion models share the same set of interfaces allowing for external uses. In particular, they are defined as subclasses of `DiscreteDiffusion` class, taking the following form:
-```python
-class DiscreteDiffusion(nn.Module):
-    """
-    The parent class for discrete denoising diffusion probabilistic models.
-
-    It supports the following methods:
-    - q_sample()
-        Sample x_t ~ q(x_t | x_0) to construct noisy Transformer inputs.
-    - compute_losses()
-        Compute the loss L_t = KL(q||p) at t-th time step.
-    - sample_step()
-        Sample x_t ~ p(x_{t-1} | x_t, x_0) at t-th time step.
-    """
-    
-    def __init__(self, num_timesteps):
-        super().__init__()
-        self.num_timesteps = num_timesteps
-
-    def q_sample(self, x_0, t, **kwargs):
-        """
-
-        Sample from q(x_t | x_0), which is used as the model inputs.
-
-        Args:
-            x_0: token ids with shape [B, N]
-            t: current time step, tensor with shape [B]
-
-        Returns:
-            return a dict of relevant outputs including x_t.
-            
-        """
-
-    def compute_losses(self, inputs, **kwargs):
-        """
-        
-        Compute the loss objective KL(q||p) to train our generative process.
-
-        Args:
-            inputs: a dict that contains input types specific to different diffusion processes, containing
-                - x_t: token ids with shape [B, N]
-                - t: scalar timesteps, with shape [B]
-
-        Returns:
-            possibly return a dict of relevant outputs, including the loss used for training.
-            
-        """
-
-    def sample_step(self, decoder_out, denoising_fn, **kwargs):
-        """
-        Given a time step t, start from x_t and sample x_{t-k} from q(x_{t-k} | x_t).
-        
-        Args:
-            decoder_out: a namedtuple that contains decoding info, including
-                - x_t: token ids with shape [B, N]
-                - t: scalar timesteps
-                - max_steps: the maximum number of decoding steps
-                - ...
-            
-            denoising_fn: a function that takes in x_t and t and returns model logits
-
-            kwargs: other arguments that are used to control decoding.
-        
-        Returns:
-            return a new decoder_out namedtuple.
-        """
-```
-
-A `DiscreteDiffusion` model can be instantiated by configuring the following:
-- Basic attributes, including
-    - `--num-diffusion-timesteps <int>` specifies the whole number of diffusion time steps (default: 50)
-    - `--diffusion-type <str>` specifies the diffusion model type (choices: `{absorbing, multinomial, reparam-absorbing, reparam-multinomial}`)
-    - `--noise-scheduler-type <str>` specifies the noise schedule only in **vanilla/reparam multinomial diffusion** (typical choices: `{linear, cosine}`; default: `cosine`)
-- Important arguments specific to the forward sampling routine in `q_sample()`, including
-    - `--q-sample-mode <str>` specifies the sampling strategy (choices: `{default, coupled, multi-step, multi-sample}`; default: `default`). We provide various choices for sampling from $q(x_t|x_0)$ to prepare corrupted token sequences for denoising, including
-        - `default`: a single sample is drawn as $x_t \sim q(x_t|x_0)$, identical to previous practices;
-        - `multi-step`: sample two i.i.d. time steps $s, t$ and draw $x_s \sim q(x_s|x_0)$ and $x_t \sim q(x_t|x_0)$, respectively. We then optimize the average $\frac{1}{2}(\mathcal{L}_s + \mathcal{L}_t)$ for variance reduction;
-        - `multi-sample`: sample two i.i.d. samples $x_t \sim q(x_t|x_0)$ and $x_t^{'} \sim q(x_t|x_0)$ at the same step, and compute the loss averaged over these two samples;
-        - `coupled`: also known as conditioned training, which is detailed in Appendix F of the paper. This starts with sampling two i.i.d. time steps $s, t$ (assume $s < t$). We draw $x_t \sim q(x_t|x_0)$ as usual, but draw $x_s$ from a distribution conditioned on $x_t$ as $x_s \sim q(x_s|x_t, x_0)$. We then compute the average $\frac{1}{2}(\mathcal{L}_s + \mathcal{L}_t)$ as the objective. This strategy can simulate the backward transition process and help stabilize training. During preliminary experiments, we found the `coupled` sampling mode brings significant improvements for both vanilla multinomial/absorbing diffusion, but the gain is not consistently substantial in reparameterized variants. 
-    - `--not-diffusing-special-sym` indicates whether to include special symbols during the diffusion process (default: False)
-- Important arguments specific to the loss objective calculation in `compute_losses()`, including
-    - `--reweighting-type <str>` specifies the reweighting scheme in our **reparameterized family** (choices: `{linear, reciprocal, none}`; default: `linear`)
-    - `--label-smoothing <float>` specifies the rate of label smoothing (default: 0.1)
-- Important arguments specific to the decoding routine in `sample_step()`, including
-    - `--argmax-decoding` indicates whether to use argmax decoding for the denoised Transformer output $\tilde{x}_0$ (default: False)
-    - `--temperature <float>` specifies the temperature $\tau$ for sampling $\tilde{x}_0 \sim \operatorname{Categorical}(f(x_t;\theta)/\tau)$ if the argmax decoding scheme is **not** used. (default: 1.0)
-    - `--decoding-strategy <str>` specifies the use of vanilla (`default`) / reparameterized (`reparam-<options>`; see [the details](#decoding-strategies))decoding strategy (choices: `{default, reparam-<options>}`; default: `default`)
-    - `--load-ema-weights` indicates whether to load the EMA model weights for generation (default: False)
-    - `--iter-decode-max-iter <int>` specifies the maximum number of timesteps for decoding (default: 10)
-    - `--iter-decode-with-beam <int>` specifies the beam size for decoding multiple sequences with different lengths in parallel (default: 1)
-    - `--iter-decode-force-max-iter` indicates the iterative decoding must run the specified number of iterations and do not exit. Recommended to set this flag to True.
-
-See [here](/fairseq/diffusion_mt/tasks/diffusion_translation_task.py#L23) for a more comprehensive list of arguments.
-</details>
-
-### Decoding Strategies
+## Basic Usage of the Discrete-diffusion
+The code is built upon [https://github.com/HKUNLP/reparam-discrete-diffusion](https://github.com/HKUNLP/reparam-discrete-diffusion). More information about the code, such as data preprocessing can be found in the above repo.
 
 #### Vanilla Sampling Scheme
 By passing `--decoding-strategy default`, the vanilla sampling scheme (specific to each discrete diffusion process) is used.
@@ -145,8 +42,7 @@ A more advanced decoding approach can be invoked by passing `--decoding-strategy
 
 See the [implementation](./discrete_diffusion/discrete_diffusions/discrete_diffusion_base.py#L130) for more details about the options.
 
-## Miscellanous
-The code is built upon [https://github.com/HKUNLP/reparam-discrete-diffusion](https://github.com/HKUNLP/reparam-discrete-diffusion). More information about the code, such as data preprocessing can be found in the above repo.
+
 
 
 ## Machine Translation
@@ -159,8 +55,8 @@ CUDA_VISIBLE_DEVICES=0 bash experiments/mt_generate.sh -a false -c <checkpoint_p
 ```
 
 Arguments:
-- `-a`: whether to average the last 5 saved checkpoints after training
-- `-a`: the path to saved model checkpoint file (if `-a True`, the directory of the saved models) 
+- `-a`: whether to average the last 5 saved checkpoints after training (Default is false especially if the checkpoint is loaded)
+- `-c`: the path to saved model checkpoint file (if `-a True`, the directory of the saved models) 
 - `-i`: indicating the number of diffusion steps in the samping process (default 1000).
 - `-e`: indicating the end of the script-level arguments.
 The following custom arguments can be passed after `-e True` for both sampling and training:
