@@ -1,314 +1,131 @@
-# A Reparameterized Discrete Diffusion Model for Text Generation
+# Pytorch Implementation of Discrete Non-Markov Diffusion Model (DNDM)
 
-This repository contains the official implementation of paper [A Reparameterized Discrete Diffusion Model for Text Generation](https://arxiv.org/abs/2302.05737).
+This repository contains the official implementation of the paper Fast Sampling via De-randomization for Discrete Diffusion Models.
+
+## Abstract
+
+Diffusion models have emerged as powerful tools for high-quality data generation, such as image generation. Despite its success in continuous spaces, discrete diffusion models, which apply to domains such as texts and natural languages, remain under-studied and often suffer from slow generation speed. In this paper, we propose a novel de-randomized diffusion process, which leads to an accelerated algorithm for discrete diffusion models.  Our technique significantly reduces the number of function evaluations (i.e., calls to the score network), making the sampling process much faster. Furthermore, we introduce a continuous-time (i.e., infinite-step) sampling algorithm that can provide even better sample qualities than its discrete-time (finite-step) counterpart. Extensive experiments on natural language generation and machine translation tasks demonstrate the superior performance of our method in terms of both generation speed and sample quality over existing methods for discrete diffusion models.
 
 ## Dependencies
 
-The codebase is implemented with [FairSeq](https://github.com/facebookresearch/fairseq). To install the dependencies, run (recommended in a [virtual environment](https://docs.python.org/3/library/venv.html)) the following commands:
+This project uses an older version of [FairSeq](https://github.com/facebookresearch/fairseq). 
+This repo is confirmed to work with Python 3.8.10.
+
+To install the necessary packages for our code, please run the following commands in this order:
 
 ```bash
-pip install -r requirements.txt
+pip install -r requirements1.txt
 
-# install our package of discrete diffusion models
+# Following https://github.com/HKUNLP/reparam-discrete-diffusion/
 pip install -e discrete_diffusion
-
-# install our fork of fairseq
 cd fairseq
-python3 setup.py build develop
+python3 setup.py build develop  # install the frozen version of fairseq
 cd ..
+
+pip install -r requirements2.txt  # Overwriting some package versions
+pip install omegaconf==2.1.1  # This package has to be installed separately after hydra-core
 ```
 
-> **Note**
-> The environment is tested with Python 3.8.10, PyTorch 1.10.0/1.12.0, and CUDA 11.3.
-> Also note our fork of fairseq modifies several files in the original codebase; using more recent versions of fairseq might lead to unexpected dependency conflicts.
-
-## Basic Usage of the Discrete-diffusion Library
-We implement discrete diffusion models in a self-contained library `discrete_diffusion` for general use. The library provides implementations of various typical discrete diffusion models, consisting of
-- `(Vanilla/Reparameterized) multinomial diffusion`: diffusion processes that inject `uniform` noise to the token sequence. The implementation of vanilla multinomial diffusion closely follows the [codebase](https://github.com/ehoogeboom/multinomial_diffusion) of the original paper;
-- `(Vanilla/Reparameterized) absorbing diffusion`: diffusion processes where tokens within the sequence could get absorbed to the `masking` state, as described in the [D3PM paper](https://arxiv.org/pdf/2107.03006.pdf).
 
 
-<details>
-  <summary> click to check the implementation details as well as their arguments 👇 </summary>
+## Basic Usage of the Discrete-diffusion
+The code is built upon [https://github.com/HKUNLP/reparam-discrete-diffusion](https://github.com/HKUNLP/reparam-discrete-diffusion). More information about the code, such as data preprocessing, can be found in the above repo.
 
-These diffusion models share the same set of interfaces allowing for external uses. In particular, they are defined as subclasses of `DiscreteDiffusion` class, taking the following form:
-```python
-class DiscreteDiffusion(nn.Module):
-    """
-    The parent class for discrete denoising diffusion probabilistic models.
+#### Countionous (Infinite) and Discrete (Finite) Timesteps
+- To enable the continuous timesteps in generation (or training), both the `--continuous` and `--continuous-sample` arguments must be included. 
 
-    It supports the following methods:
-    - q_sample()
-        Sample x_t ~ q(x_t | x_0) to construct noisy Transformer inputs.
-    - compute_losses()
-        Compute the loss L_t = KL(q||p) at t-th time step.
-    - sample_step()
-        Sample x_t ~ p(x_{t-1} | x_t, x_0) at t-th time step.
-    """
-    
-    def __init__(self, num_timesteps):
-        super().__init__()
-        self.num_timesteps = num_timesteps
+- To enable the discrete timesteps, both the `--continuous` and `--continuous-sample` arguments must be removed. `-i` is used to indicate the number of diffusion steps in the sampling process (default 1000).
 
-    def q_sample(self, x_0, t, **kwargs):
-        """
 
-        Sample from q(x_t | x_0), which is used as the model inputs.
 
-        Args:
-            x_0: token ids with shape [B, N]
-            t: current time step, tensor with shape [B]
+#### Top-k decoding 
+Instead of directly determining which token gets updated by drawing transition time, we can employ a two-step process: first generate the number of tokens that transit from noise to x0, then determine those tokens according to the score network.
 
-        Returns:
-            return a dict of relevant outputs including x_t.
-            
-        """
+By default, the top-k decoding is enabled. To disable the top-k decoding please use the following argument:
 
-    def compute_losses(self, inputs, **kwargs):
-        """
-        
-        Compute the loss objective KL(q||p) to train our generative process.
+- `--not-topk`: indicating whether to disable the top-k transition time selection (default False).
 
-        Args:
-            inputs: a dict that contains input types specific to different diffusion processes, containing
-                - x_t: token ids with shape [B, N]
-                - t: scalar timesteps, with shape [B]
+#### Schedule
+The best schedule we have explored is 'Beta,' which is also the default. To beta schedule is parameterized by two parameters $\alpha$ and $\beta$, i.e., $Beta(\alpha, \beta)$:
 
-        Returns:
-            possibly return a dict of relevant outputs, including the loss used for training.
-            
-        """
+- `--alpha`: for discrete sampling, indicating the alpha value for the Beta distribution schedule; for continuous sampling, indicating the alpha value of the Beta distribution from which the transition timestamps are sampled (default 3);
+- `--beta`: for discrete sampling, indicating the beta value for the Beta distribution schedule; for continuous sampling, indicating the beta value of the Beta distribution from which the transition timestamps are sampled (default 3);
 
-    def sample_step(self, decoder_out, denoising_fn, **kwargs):
-        """
-        Given a time step t, start from x_t and sample x_{t-k} from q(x_{t-k} | x_t).
-        
-        Args:
-            decoder_out: a namedtuple that contains decoding info, including
-                - x_t: token ids with shape [B, N]
-                - t: scalar timesteps
-                - max_steps: the maximum number of decoding steps
-                - ...
-            
-            denoising_fn: a function that takes in x_t and t and returns model logits
+We also support other schedules. To use them, please use `--schedule` followed by 'linear_lambda', 'linear_alpha', or 'cosine'.
 
-            kwargs: other arguments that are used to control decoding.
-        
-        Returns:
-            return a new decoder_out namedtuple.
-        """
-```
 
-A `DiscreteDiffusion` model can be instantiated by configuring the following:
-- Basic attributes, including
-    - `--num-diffusion-timesteps <int>` specifies the whole number of diffusion time steps (default: 50)
-    - `--diffusion-type <str>` specifies the diffusion model type (choices: `{absorbing, multinomial, reparam-absorbing, reparam-multinomial}`)
-    - `--noise-scheduler-type <str>` specifies the noise schedule only in **vanilla/reparam multinomial diffusion** (typical choices: `{linear, cosine}`; default: `cosine`)
-- Important arguments specific to the forward sampling routine in `q_sample()`, including
-    - `--q-sample-mode <str>` specifies the sampling strategy (choices: `{default, coupled, multi-step, multi-sample}`; default: `default`). We provide various choices for sampling from $q(x_t|x_0)$ to prepare corrupted token sequences for denoising, including
-        - `default`: a single sample is drawn as $x_t \sim q(x_t|x_0)$, identical to previous practices;
-        - `multi-step`: sample two i.i.d. time steps $s, t$ and draw $x_s \sim q(x_s|x_0)$ and $x_t \sim q(x_t|x_0)$, respectively. We then optimize the average $\frac{1}{2}(\mathcal{L}_s + \mathcal{L}_t)$ for variance reduction;
-        - `multi-sample`: sample two i.i.d. samples $x_t \sim q(x_t|x_0)$ and $x_t^{'} \sim q(x_t|x_0)$ at the same step, and compute the loss averaged over these two samples;
-        - `coupled`: also known as conditioned training, which is detailed in Appendix F of the paper. This starts with sampling two i.i.d. time steps $s, t$ (assume $s < t$). We draw $x_t \sim q(x_t|x_0)$ as usual, but draw $x_s$ from a distribution conditioned on $x_t$ as $x_s \sim q(x_s|x_t, x_0)$. We then compute the average $\frac{1}{2}(\mathcal{L}_s + \mathcal{L}_t)$ as the objective. This strategy can simulate the backward transition process and help stabilize training. During preliminary experiments, we found the `coupled` sampling mode brings significant improvements for both vanilla multinomial/absorbing diffusion, but the gain is not consistently substantial in reparameterized variants. 
-    - `--not-diffusing-special-sym` indicates whether to include special symbols during the diffusion process (default: False)
-- Important arguments specific to the loss objective calculation in `compute_losses()`, including
-    - `--reweighting-type <str>` specifies the reweighting scheme in our **reparameterized family** (choices: `{linear, reciprocal, none}`; default: `linear`)
-    - `--label-smoothing <float>` specifies the rate of label smoothing (default: 0.1)
-- Important arguments specific to the decoding routine in `sample_step()`, including
-    - `--argmax-decoding` indicates whether to use argmax decoding for the denoised Transformer output $\tilde{x}_0$ (default: False)
-    - `--temperature <float>` specifies the temperature $\tau$ for sampling $\tilde{x}_0 \sim \operatorname{Categorical}(f(x_t;\theta)/\tau)$ if the argmax decoding scheme is **not** used. (default: 1.0)
-    - `--decoding-strategy <str>` specifies the use of vanilla (`default`) / reparameterized (`reparam-<options>`; see [the details](#decoding-strategies))decoding strategy (choices: `{default, reparam-<options>}`; default: `default`)
-    - `--load-ema-weights` indicates whether to load the EMA model weights for generation (default: False)
-    - `--iter-decode-max-iter <int>` specifies the maximum number of timesteps for decoding (default: 10)
-    - `--iter-decode-with-beam <int>` specifies the beam size for decoding multiple sequences with different lengths in parallel (default: 1)
-    - `--iter-decode-force-max-iter` indicates the iterative decoding must run the specified number of iterations and do not exit. Recommended to set this flag to True.
-
-See [here](/fairseq/diffusion_mt/tasks/diffusion_translation_task.py#L23) for a more comprehensive list of arguments.
-</details>
-
-### Decoding Strategies
-
-#### Vanilla Sampling Scheme
-By passing `--decoding-strategy default`, the vanilla sampling scheme (specific to each discrete diffusion process) is used.
-
-#### Improved Sampling with Reparameterization
-A more advanced decoding approach can be invoked by passing `--decoding-strategy reparam-<conditioning-of-v>-<topk_mode>-<schedule>`. This approach is based on the proposed reparameterization in our paper and allows for more effective decoding procedures. The options specify the decoding algorithm via
-- `<conditioning-of-v>`: `uncond` or `cond` (default `uncond`): whether to generate the routing variable $v_t$ in a conditional or unconditional manner;
-- `<topk_mode>`: `stochastic<float>` or `deterministic` (default `deterministic`): whether to use stochastic or deterministic top-$k$ selection. The float value in `stochastic<float>` specifies the degree of randomness in the stochastic top-$k$ selection;
-- `<schedule>`: `linear` or `cosine` (default `cosine`): the schedule for $k$ during our denoising procedure, which is used to control the number of top-$k$ tokens to be denoised for the next decoding step.
-
-See the [implementation](./discrete_diffusion/discrete_diffusions/discrete_diffusion_base.py#L130) for more details about the options.
 
 ## Machine Translation
+The three datasets, including IWLS'14, WMT'14, and WMT'16 datasets, can be used for generation and training. Remember to process the data first.
 
-### Data Preprocessing
-Please see the scripts below for details.
-
-> **Note**
-> - Note that all tasks considered in this work operate on the original data and do **not** adopt Knowledge Distillation (KD).
-
-#### IWSLT14 DE-EN
-We follow the standard pre-processing in [fairseq/examples](https://github.com/facebookresearch/fairseq/tree/main/examples/translation#iwslt14-german-to-english-transformer) to prepare the binarized data:
+### Generating
+We first get into the `fairseq` folder and then run the following commands to train the models. Basic usages:
 ```bash
-# fetch and preprocess the data to BPE codes
-cd examples/translation/
-bash prepare-iwslt14.sh
-cd ../..
-
-# binarize the data
-TEXT=examples/translation/iwslt14.tokenized.de-en
-fairseq-preprocess --joined-dictionary --source-lang de --target-lang en \
-    --trainpref $TEXT/train --validpref $TEXT/valid --testpref $TEXT/test \
-    --destdir data-bin/iwslt14.tokenized.de-en \
-    --workers 20
+CUDA_VISIBLE_DEVICES=0 bash experiments/mt_generate.sh -a false -c <checkpoint_path> -d <iwslt/wmt14/wmt16> -e True
 ```
 
-#### WMT14 EN-DE
-We use the data released in [fairseq/examples](https://github.com/facebookresearch/fairseq/tree/main/examples/nonautoregressive_translation#dataset) to prepare the dataset:
+Arguments:
+- `-a`: whether to average the last 5 saved checkpoints after training (Default is false, especially if the checkpoint is loaded)
+- `-c`: the path to the saved model checkpoint file (if `-a True`, the directory of the saved models) 
+- `-i`: indicating the number of diffusion steps in the sampling process (default 1000).
+- `-e`: indicating the end of the script-level arguments.
+The following custom arguments can be passed after `-e True` for both sampling and training:
+- `--continuous`: to enable continuous timesteps (without this argument, we are using the discrete accelerated reverse sampling model).
+- `--continuous-sample`: to enable continuous timesteps for sampling, including validation (will not work if the model is trained without `--continuous`).
+- `--alpha`: for discrete sampling, indicating the alpha value for the Beta distribution schedule; for continuous sampling, indicating the alpha value of the Beta distribution from which the transition timestamps are sampled (default 3);
+- `--beta`: for discrete sampling, indicating the beta value for the Beta distribution schedule; for continuous sampling, indicating the beta value of the Beta distribution from which the transition timestamps are sampled (default 3);
+- `--schedule`: indicating the schedule for timesteps in discrete accelerated reverse sampling.
+        The best schedule we have explored is 'Beta', so it is also the default.
+        The other supported schedules: are 'linear_lambda', 'linear_alpha', and 'cosine'.
+- `--not-topk`: indicating whether to disable the top-k transition time selection (default False).
+
+For example, when trying to acquire the sampling results of **DNDM-Multi** (without top-k) with continuous timesteps on the IWSLT14 dataset (with timestamps sampled from Beta(17,4) as reported):
 ```bash
-wget http://dl.fbaipublicfiles.com/nat/original_dataset.zip
-unzip original_dataset.zip
-TEXT=wmt14_ende
-fairseq-preprocess --joined-dictionary \
-    --source-lang en --target-lang de \
-    --trainpref $TEXT/train.en-de --validpref $TEXT/valid.en-de --testpref $TEXT/test.en-de \
-    --destdir data-bin/wmt14_ende --thresholdtgt 0 --thresholdsrc 0 \
-    --workers 20
+CUDA_VISIBLE_DEVICES=0 bash experiments/mt_generate.sh -a false -c <checkpoint_path> -d wmt -e True --continuous --continuous-sample --alpha 17 --beta 4 --not-topk
 ```
 
-#### WMT16 EN-RO
-For this dataset, we use the raw data [wmt16.tar.gz](https://drive.google.com/file/d/1YrAwCEuktG-iDVxtEW-FE72uFTLc5QMl/view?usp=sharing) as pre-processed in [this repository](https://github.com/nyu-dl/dl4mt-nonauto/tree/multigpu).
+When trying to acquire the sampling results of **DNDM-k-Absorb** at 1000 steps on the WMT16 dataset(with schedule Beta(15,7) as reported):
 ```bash
-tar xzvf wmt16.tar.gz
-
-TEXT=wmt16/en-ro
-
-# move train/ dev/ test/ bpe codes into the $TEXT folder
-mv $TEXT/train/corpus.bpe.en $TEXT/train.bpe.en
-mv $TEXT/train/corpus.bpe.ro $TEXT/train.bpe.ro
-mv $TEXT/dev/dev.bpe.en $TEXT/dev.bpe.en
-mv $TEXT/dev/dev.bpe.ro $TEXT/dev.bpe.ro
-mv $TEXT/test/test.bpe.en $TEXT/test.bpe.en
-mv $TEXT/test/test.bpe.ro $TEXT/test.bpe.ro
-
-# binarize the data
-fairseq-preprocess --joined-dictionary \
-    --source-lang en --target-lang ro \
-    --trainpref $TEXT/train.bpe --validpref $TEXT/dev.bpe --testpref $TEXT/test.bpe \
-    --destdir data-bin/wmt16_enro --thresholdtgt 0 --thresholdsrc 0 \
-    --workers 20
+CUDA_VISIBLE_DEVICES=0 bash experiments/mt_generate.sh -a false -c <checkpoint_path> -d wmt -i 1000 -e True --alpha 15 --beta 7 --schedule Beta
 ```
+
+For discrete sampling, our `--alpha` and `--beta` values selected using validation sets are listed as following:
+
+| Datasets and Models | alpha | beta |
+|---------------------|-------|------|
+| IWSLT14 with RMD    | 17    | 5    |
+| IWSLT14 with RAD    | 5     | 3    |
+| WMT14 with RMD      | 5     | 3    |
+| WMT14 with RAD      | 3     | 3    |
+| WMT16 with RMD      | 17    | 7    |
+| WMT16 with RAD      | 20    | 5    |
+
+For continuous sampling, our `--alpha` and `--beta` values selected using validation sets are listed as following:
+
+| Datasets | alpha | beta |
+|----------|-------|------|
+| IWSLT14  | 17    | 4    |
+| WMT14    | 100   | 4    |
+| WMT16    | 100   | 4    |
+
+
+For the sampling processes of discrete **DNDM** with or without top-k transition time selection, the results can be replicated using the trained model checkpoints provided by [https://github.com/HKUNLP/reparam-discrete-diffusion](https://github.com/HKUNLP/reparam-discrete-diffusion) (the links to the Reparam-multinomial and Reparam-absorbing models within the README).
+
+
 ### Training
-We first get into the `fairseq` folder and then run the following commands to train the models.
+In this subsection, we introduce training a discrete diffusion model and a continuous **DNDM-C** model. If you want to try the continuous **DNDM-C** (with or without top-k) sampling, The results of training with **DNDM-C** model can be found in G.2 of our supplementary material. To train the continuous **DNDM-C** model from scratch,  the arguments "--continuous" and "--continuous-sample" are needed. If you want a discrete diffusion model, the arguments "--continuous" and "--continuous-sample" need to be removed.
+
+Basic usages for training the continuous **DNDM-C** model: we first get into the `fairseq` folder and then run the following commands:
 ```bash
 ######## training scripts for IWSLT'14 , WMT'14, and WMT'16 
-# first cd to fairseq
-# we use 1 GPU for IWSLT'14, 4 GPUs for WMT'14 and 2 GPUs for WMT'16 datasets respectively.
-CUDA_VISIBLE_DEVICES=0 bash experiments/mt_train.sh -m absorbing -d <iwslt/wmt14/wmt16> -s default -e True --store-ema --label-smoothing 0.1
-CUDA_VISIBLE_DEVICES=1 bash experiments/mt_train.sh -m multinomial -d <iwslt/wmt14/wmt16> -s default -e True --not-diffusing-special-sym --store-ema --label-smoothing 0.0
-CUDA_VISIBLE_DEVICES=2 bash experiments/mt_train.sh -m reparam-absorbing -d <iwslt/wmt14/wmt16> -s default -e True --q-sample-mode coupled  --store-ema --label-smoothing 0.1 --reweighting-type linear
-CUDA_VISIBLE_DEVICES=3 bash experiments/mt_train.sh -m reparam-multinomial -d <iwslt/wmt14/wmt16> -s default -e True --not-diffusing-special-sym --q-sample-mode coupled --store-ema --label-smoothing 0.1 --reweighting-type linear
+CUDA_VISIBLE_DEVICES=2 bash experiments/mt_train.sh -m reparam-absorbing -d <iwslt/wmt14/wmt16> -s default -e True  --continuous --continuous-sample --q-sample-mode coupled  --store-ema --label-smoothing 0.1 --reweighting-type linear
+CUDA_VISIBLE_DEVICES=3 bash experiments/mt_train.sh -m reparam-multinomial -d <iwslt/wmt14/wmt16> -s default -e True  --continuous --continuous-sample --not-diffusing-special-sym --q-sample-mode coupled --store-ema --label-smoothing 0.1 --reweighting-type linear
 ```
 
-> **Note**
-> - `-s <str>` is used to specify the name of the experiment.
-> - We could pass custom arguments that might be specific to training by appending them after `-e True`.
-
-### Generation & Evaluation
-The evaluation pipeline is handled by `experiments/mt_generate.sh`. The script will generate the translation results and evaluate the BLEU score.
-```bash
-########### IWLS'14, WMT'14, and WMT'16 datasets
-# we recommend putting each checkpoint into a separate folder
-# since the script will put the decoded results into a file under the same folder of each checkpoint.
-CUDA_VISIBLE_DEVICES=0 bash experiments/mt_generate.sh -a false -c <checkpoint_path> -d <iwslt/wmt14/wmt16> 
-```
-Arguments:
-- `-a`: whether to average multiple checkpoints
-- `-c`: indicates the location of the checkpoint.
-        If `-a false` (not to average checkpoints), pass the checkpoint **path**; 
-        if `-a true`, pass the **directory** that stores multiple checkpoints at different training steps for averaging.
-- `-d`: the dataset name
-
-### Trained Model Checkpoints
-
-We also provide the checkpoints of our trained models.
-
-| Dataset | Model | Checkpoint link |
-| --- | --- | :---: |
-| IWSLT'14 | Multinomial | [link](https://connecthkuhk-my.sharepoint.com/:f:/g/personal/linzheng_connect_hku_hk/EpAzao9L5XBMsef5LNZ1iXkB36Mp9V2gQGOwbopgPaOTVA?e=OraA81) |
-| IWSLT'14 | Absorbing | [link](https://connecthkuhk-my.sharepoint.com/:f:/g/personal/linzheng_connect_hku_hk/Eg1tqijPqkpNvc0Lai-BDE0Btc8L4UIJ-7oedCp4MXDPKw?e=liuASC) |
-| IWSLT'14 | Reparam-multinomial | [link](https://connecthkuhk-my.sharepoint.com/:f:/g/personal/linzheng_connect_hku_hk/EmCnWDgoj8JKmji1QE8UlkMB-3ow1aI8Bdo78-C7LqU_hA?e=DNahYn) |
-| IWSLT'14 | Reparam-absorbing | [link](https://connecthkuhk-my.sharepoint.com/:f:/g/personal/linzheng_connect_hku_hk/EmvmYZemCIRMsKQF-GNitzQB1lRUYj5MSow9jyxHZ4BCUg?e=nS81rB) |
-| WMT'14 | Multinomial | [link](https://connecthkuhk-my.sharepoint.com/:f:/g/personal/linzheng_connect_hku_hk/Ehgx0Ur0fbdJgY0zreg4KbABrN21txHM-sisbR9xZ6unDQ?e=T1vnJL) |
-| WMT'14 | Absorbing | [link](https://connecthkuhk-my.sharepoint.com/:f:/g/personal/linzheng_connect_hku_hk/EtO0Hft6GmhKogahr4V1hnQB4Odt5MUcjSUXawg_lH_0wg?e=Ikzs3R) |
-| WMT'14 | Reparam-multinomial | [link](https://connecthkuhk-my.sharepoint.com/:f:/g/personal/linzheng_connect_hku_hk/EtfgIjc9g2tEh3F9IpcvFoUBmIkcihy_tpVezr845fEDtQ?e=uTYJYF) |
-| WMT'14 | Reparam-absorbing | [link](https://connecthkuhk-my.sharepoint.com/:f:/g/personal/linzheng_connect_hku_hk/EniOmBTtL2dDtk1GNBw-kg4BsJ3SWTGmGASNdjRjSCP27w?e=Ona4qx) |
-| WMT'16 | Multinomial | [link](https://connecthkuhk-my.sharepoint.com/:f:/g/personal/linzheng_connect_hku_hk/EiBNFip8De5Nk-kimmyQ3UYBftUH3Cz74RsiA9IfoIryBQ?e=tzswtp) |
-| WMT'16 | Absorbing | [link](https://connecthkuhk-my.sharepoint.com/:f:/g/personal/linzheng_connect_hku_hk/EiFkp1Ros4VCsl4w-Feez7oB_h2zLEV61dHwsaFGxk7ioQ?e=96xT6h) |
-| WMT'16 | Reparam-multinomial | [link](https://connecthkuhk-my.sharepoint.com/:f:/g/personal/linzheng_connect_hku_hk/Em4byDij7zJIl1SY6nIcVeABbAEQZvsb1O8LdlS4i6t92A?e=0QQZaA) |
-| WMT'16 | Reparam-absorbing | [link](https://connecthkuhk-my.sharepoint.com/:f:/g/personal/linzheng_connect_hku_hk/Ep5D3LYr7FJLiWOrPbm3T3YBWtloPcdlNOmh5k9nM6CuzA?e=7pC43S) |
+The additional custom arguments available to be passed after `-e True` are the same as the Sampling section above.
 
 
-## Question Generation and Paraphrasing Tasks
-We follow the experimental setup in [DiffuSeq](https://github.com/Shark-NLP/DiffuSeq) for **question generation** and **paraphrasing** tasks . 
 
-### Data Preprocessing
-The raw data of these two tasks can be fetched from the original [DiffuSeq repository](https://github.com/Shark-NLP/DiffuSeq). We then binarize the data via the provided [script](./fairseq/diffusion_mt/scripts/preprocess_diffuseq_datasets.sh).
-```bash
-# put the raw data in the directory ``diffuseq_data/QG``
-# Preprocess the question generation dataset
-bash diffusion_mt/scripts/preprocess_diffuseq_datasets.sh QG
 
-# put the raw data in the directory ``diffuseq_data/QQP``
-# Preprocess the paraphrasing dataset
-bash diffusion_mt/scripts/preprocess_diffuseq_datasets.sh QQP
-```
 
-### Training
-```bash
-# QQP or QG datasets
-# first cd to fairseq
-CUDA_VISIBLE_DEVICES=0,1 bash experiments/diffuseq_train.sh -m absorbing -d <qqp/qg> -s default -e True --store-ema --label-smoothing 0.1
-CUDA_VISIBLE_DEVICES=2,3 bash experiments/diffuseq_train.sh -m multinomial -d <qqp/qg> -s default -e True      --not-diffusing-special-sym --store-ema --label-smoothing 0.0 
-CUDA_VISIBLE_DEVICES=0,1 bash experiments/diffuseq_train.sh -m reparam-multinomial -d <qqp/qg> -s default -e True  --not-diffusing-special-sym  --q-sample-mode coupled --store-ema --label-smoothing 0.1 --reweighting-type linear
-CUDA_VISIBLE_DEVICES=2,3 bash experiments/diffuseq_train.sh -m reparam-absorbing -d <qqp/qg> -s default -e True      --q-sample-mode coupled --store-ema --label-smoothing 0.1 --reweighting-type linear 
-```
 
-### Generation & Evaluation
-We closely follow the generation & evaluation protocols as in [DiffuSeq](https://github.com/Shark-NLP/DiffuSeq) to ensure a head-to-head comparison. The whole pipeline is re-implemented in `fairseq/diffusion_mt/scripts/decode_diffuseq.py` and `fairseq/diffusion_mt/scripts/eval_diffuseq.py` respectively to be compatible with Fairseq. Run the following commands:
-
-```bash
-# we recommend putting each checkpoint into a separate folder
-# since the script will put the decoded results into a file under the same folder of each checkpoint.
-CUDA_VISIBLE_DEVICES=0 bash experiments/diffuseq_generate.sh -a false -b true -c <checkpoint_path> -d <qqp/qg> 
-```
-Arguments:
-- `-a`: whether to average multiple checkpoints
-- `-b`: whether to use multiple samples for MBR decoding
-- `-c`: indicates the location of the checkpoint. If `-a false` (not to average checkpoints), pass the checkpoint **path**; if `-a true`, pass the **directory** that stores multiple checkpoints at different training steps for averaging.
-- `-d`: the dataset name
-
-### Trained Model Checkpoints
-
-We also provide the checkpoints of our trained models.
-
-| Dataset | Model | Checkpoint link |
-| --- | --- | :---: |
-| QG | Multinomial | [link](https://connecthkuhk-my.sharepoint.com/:f:/g/personal/linzheng_connect_hku_hk/Emd5ffawQspMjWJWx8zZwkQB7No7IaSd8Qplrt9BCPY0TA?e=CIwVRV) |
-| QG | Absorbing | [link](https://connecthkuhk-my.sharepoint.com/:f:/g/personal/linzheng_connect_hku_hk/EuyHs9y3FjNNoMbNOJ1-MmcBm6wOQnbx8y0FIAF8XL2MiQ?e=X1ppCz) |
-| QG | Reparam-multinomial | [link](https://connecthkuhk-my.sharepoint.com/:f:/g/personal/linzheng_connect_hku_hk/EuxVOlwZhwlAjwhHRtmDe0gBrxnKVwb55FrV3QCdDOn4gw?e=TONFwu) |
-| QG | Reparam-absorbing | [link](https://connecthkuhk-my.sharepoint.com/:f:/g/personal/linzheng_connect_hku_hk/EtnPOo43IQxOrOByjPcpYCMBMOapyD7ofB4X65AvnFQAig?e=quKftB) |
-| QQP | Multinomial | [link](https://connecthkuhk-my.sharepoint.com/:f:/g/personal/linzheng_connect_hku_hk/Ela7hbH1bDhAmr8DIS-OlW8BTYSJZSDBX-0OPBQfTNR-Aw?e=otYfxF) |
-| QQP | Absorbing | [link](https://connecthkuhk-my.sharepoint.com/:f:/g/personal/linzheng_connect_hku_hk/EsYmGzUB2wlNkcSYvQsGqnYB8C7lqHgo4v5EBoHcuijAgg?e=NigcIV) |
-| QQP | Reparam-multinomial | [link](https://connecthkuhk-my.sharepoint.com/:f:/g/personal/linzheng_connect_hku_hk/EkM39SCwpFBJnqU0_FPCldYBmt0Bs_FswRzl1NLCfR_h0w?e=ZuVOBn) |
-| QQP | Reparam-absorbing | [link](https://connecthkuhk-my.sharepoint.com/:f:/g/personal/linzheng_connect_hku_hk/EgbniUZ31zxJmx2adZjjOxwBt7brEs3oJbEBwqtPgvDwRA?e=DuwIMF) |
-
-## Citation
-```bibtex
-@article{zheng2023rdm,
-  title={A Reparameterized Discrete Diffusion Model for Text Generation},
-  author={Zheng, Lin and Yuan, Jianbo and Yu, Lei and Kong, Lingpeng},
-  journal={arXiv preprint arXiv:2302.05737},
-  year={2023}
-}
-```

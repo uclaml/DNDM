@@ -3,7 +3,7 @@ set -ex
 # process named arguments
 err_msg() { echo "Invalid arguments" 1>&2; exit 1; }
 
-while getopts ":a:c:d:t:e:" o; do
+while getopts ":a:c:d:i:e:" o; do
     case "${o}" in
         a)
             AVG_CKPTS=${OPTARG}
@@ -13,6 +13,9 @@ while getopts ":a:c:d:t:e:" o; do
             ;;
         d)
             DATASET=${OPTARG}
+            ;;
+        i)
+            NUM_ITER=${OPTARG}
             ;;
         e)
             # the end of named arguments
@@ -25,6 +28,7 @@ while getopts ":a:c:d:t:e:" o; do
 done
 shift $((OPTIND-1))
 CKPT_DIR=${CKPT_DIR:-none}
+NUM_ITER=${NUM_ITER:-1000}
 AVG_CKPTS=${AVG_CKPTS:-true}
 DATASET=${DATASET:-iwslt}
 
@@ -60,15 +64,15 @@ else
     CKPT_DIR=${CKPT_DIR%/*}
 fi
 
-ITER=50
+# ITER=50
 
-for NUM_ITER in $ITER
-do
+# for NUM_ITER in $ITER
+# do
     for DECODING_STRATEGY in "--decoding-strategy default" 
     do
         fairseq-generate \
             $DATA_TAG \
-            --gen-subset valid \
+            --gen-subset test \
             --user-dir diffusion_mt\
             --task $TASK \
             --path $CKPT_DIR/$CKPT_NAME \
@@ -80,13 +84,13 @@ do
             --load-ema-weights\
             --remove-bpe \
             --print-step \
-            --batch-size 100 $MODEL_OVERRIDE_ARGS > $CKPT_DIR/generate.out
+            --batch-size 100 $MODEL_OVERRIDE_ARGS  $@ > $CKPT_DIR/generate.out
         echo "###################### NUM_ITER: $NUM_ITER $DECODING_STRATEGY #################################"
         echo "--------------> compound split BLEU <----------------"
         bash scripts/compound_split_bleu.sh $CKPT_DIR/generate.out
         echo "###################### NUM_ITER: $NUM_ITER $DECODING_STRATEGY #################################"
     done
-done
+# done
 
 
 #"--decoding-strategy reparam-$COND-$DETERMINISTIC-$STRATEGY"
