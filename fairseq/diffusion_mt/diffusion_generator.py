@@ -71,11 +71,9 @@ class Schedule:
         if T < sample_step/2:
             beta_samples = torch.distributions.Beta(alpha, beta_val).sample((N,))
             scaled_samples = beta_samples * T
-            Tran_time = torch.where(
-                torch.rand(N) < 0.5,
-                scaled_samples.ceil(),
-                scaled_samples.floor()
-            ).long().clamp(0, T-1)
+            Tran_time = scaled_samples.floor().long()
+            Tran_time = torch.clamp(Tran_time, min=0, max=T-1)
+
         else:
             x = np.linspace(0, 1, T)
             weights = beta.pdf(x, alpha, beta_val)
