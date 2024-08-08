@@ -66,24 +66,24 @@ class Schedule:
       # weights_tensor /= weights_tensor.sum()  # normalize weights to sum to 1
       Tran_time = torch.multinomial(weights_tensor, N, replacement=True) + 1
       return Tran_time
-    def Beta(N, T, alpha, beta_val):
-      """
-      Generate a tensor with integers between 1 and T, inclusive, with weights derived from a Beta distribution.
-      
-      Parameters:
-      - N: Number of elements
-      - T: Number of time steps
-      - alpha, beta_val: Parameters of the Beta distribution
-      
-      Returns:
-      - Tran_time: Tensor with random integers between 1 and T, inclusive
-      """
-      x = np.linspace(0, 1, T)
-      weights = beta.pdf(x, alpha, beta_val)
-      weights_tensor = torch.tensor(weights, dtype=torch.float32)
-      weights_tensor /= weights_tensor.sum()  # normalize weights to sum to 1
-      Tran_time = torch.multinomial(weights_tensor, N, replacement=True) + 1
-      return Tran_time
+
+    def Beta(N, T, alpha, beta_val, sample_step):
+        if T < sample_step/2:
+            beta_samples = torch.distributions.Beta(alpha, beta_val).sample((N,))
+            scaled_samples = beta_samples * T
+            Tran_time = torch.where(
+                torch.rand(N) < 0.5,
+                scaled_samples.ceil(),
+                scaled_samples.floor()
+            ).long().clamp(0, T-1)
+        else:
+            x = np.linspace(0, 1, T)
+            weights = beta.pdf(x, alpha, beta_val)
+            weights_tensor = torch.tensor(weights, dtype=torch.float32)
+            weights_tensor /= weights_tensor.sum()  # normalize weights to sum to 1
+            Tran_time = torch.multinomial(weights_tensor, N, replacement=True) + 1
+        return Tran_time
+    
 
 
 
@@ -521,7 +521,7 @@ class DiffusionGenerator(object):
           # Transition_time = Schedule.Beta(N,T,17,4).cuda()
           ##Greate for 50 step
           # Transition_time = Schedule.Beta(N,T,2,2).cuda()
-          Transition_time = Schedule.Beta(N,T,self.alpha,self.beta).cuda()
+          Transition_time = Schedule.Beta(N,T,self.alpha,self.beta, model.diffusion.num_timesteps).cuda()
         else:
           raise NotImplementedError
         ### Remove duplicates
