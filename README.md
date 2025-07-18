@@ -1,17 +1,16 @@
 # Pytorch Implementation of Discrete Non-Markov Diffusion Model (DNDM)
 
-This repository contains the official implementation of the paper Fast Sampling via De-randomization for Discrete Diffusion Models.
+This repository contains the official implementation of the paper: **[Fast Sampling via Discrete Non-Markov Diffusion Models with Predetermined Transition Time](https://arxiv.org/abs/2312.09193)**. 
 
-## Abstract
+## 📝 Abstract
 
-Diffusion models have emerged as powerful tools for high-quality data generation, such as image generation. Despite its success in continuous spaces, discrete diffusion models, which apply to domains such as texts and natural languages, remain under-studied and often suffer from slow generation speed. In this paper, we propose a novel de-randomized diffusion process, which leads to an accelerated algorithm for discrete diffusion models.  Our technique significantly reduces the number of function evaluations (i.e., calls to the score network), making the sampling process much faster. Furthermore, we introduce a continuous-time (i.e., infinite-step) sampling algorithm that can provide even better sample qualities than its discrete-time (finite-step) counterpart. Extensive experiments on natural language generation and machine translation tasks demonstrate the superior performance of our method in terms of both generation speed and sample quality over existing methods for discrete diffusion models.
+Discrete diffusion models have emerged as powerful tools for high-quality data generation. Despite their success in discrete spaces, such as text generation tasks, the acceleration of discrete diffusion models remains under-explored. In this paper, we propose discrete non-Markov diffusion models (DNDM), which naturally induce the predetermined transition time set. This enables a training-free sampling algorithm that significantly reduces the number of function evaluations (i.e., calls to the neural network), making the sampling process much faster. Furthermore, we study the transition from finite to infinite step sampling, offering new insights into bridging the gap between discrete and continuous-time processes for discrete diffusion models. Extensive experiments on natural language generation and machine translation tasks demonstrate the superior performance of our method in terms of both generation speed and sample quality compared to existing methods for discrete diffusion models.
 
-## Dependencies
+## 🛠️ Installation
 
-This project uses an older version of [FairSeq](https://github.com/facebookresearch/fairseq). 
-This repo is confirmed to work with Python 3.8.10.
+Our code is built upon a specific version of [FairSeq](https://github.com/facebookresearch/fairseq) and was tested with Python 3.8.10.
 
-To install the necessary packages for our code, please run the following commands in this order:
+To set up the environment, please run the following commands in order:
 
 ```bash
 pip install -r requirements1.txt
@@ -28,10 +27,10 @@ pip install omegaconf==2.1.1  # This package has to be installed separately afte
 
 
 
-## Basic Usage of the Discrete-diffusion
+## Key Concepts & Arguments
 The code is built upon [https://github.com/HKUNLP/reparam-discrete-diffusion](https://github.com/HKUNLP/reparam-discrete-diffusion). More information about the code, such as data preprocessing, can be found in the above repo.
 
-#### Countionous (Infinite) and Discrete (Finite) Timesteps
+#### Continuous (Infinite) and Discrete (Finite) Timesteps
 - To enable the continuous timesteps in generation (or training), both the `--continuous` and `--continuous-sample` arguments must be included. 
 
 - To enable the discrete timesteps, both the `--continuous` and `--continuous-sample` arguments must be removed. `-i` is used to indicate the number of diffusion steps in the sampling process (default 1000).
@@ -58,11 +57,11 @@ We also support other schedules. To use them, please use `--schedule` followed b
 ## Machine Translation
 The three datasets, including IWLS'14, WMT'14, and WMT'16 datasets, can be used for generation and training. Remember to process the data first.
 
+
 ### Generating
-We first get into the `fairseq` folder and then run the following commands to train the models. Basic usages:
-```bash
-CUDA_VISIBLE_DEVICES=0 bash experiments/mt_generate.sh -a false -c <checkpoint_path> -d <iwslt/wmt14/wmt16> -e True
-```
+> **Important Note**: All generation and training scripts must be run from inside the `fairseq/` directory.
+
+First, get into the `fairseq` folder and then run the following commands. Basic usages:
 
 Arguments:
 - `-a`: whether to average the last 5 saved checkpoints after training (Default is false, especially if the checkpoint is loaded)
@@ -81,7 +80,7 @@ The following custom arguments can be passed after `-e True` for both sampling a
 
 For example, when trying to acquire the sampling results of **DNDM-Multi** (without top-k) with continuous timesteps on the IWSLT14 dataset (with timestamps sampled from Beta(17,4) as reported):
 ```bash
-CUDA_VISIBLE_DEVICES=0 bash experiments/mt_generate.sh -a false -c <checkpoint_path> -d wmt -e True --continuous --continuous-sample --alpha 17 --beta 4 --not-topk
+CUDA_VISIBLE_DEVICES=0 bash experiments/mt_generate.sh -a false -c <checkpoint_path> -d iwslt -e True --continuous --continuous-sample --alpha 17 --beta 4 --not-topk
 ```
 
 When trying to acquire the sampling results of **DNDM-k-Absorb** at 1000 steps on the WMT16 dataset(with schedule Beta(15,7) as reported):
@@ -124,8 +123,20 @@ CUDA_VISIBLE_DEVICES=3 bash experiments/mt_train.sh -m reparam-multinomial -d <i
 
 The additional custom arguments available to be passed after `-e True` are the same as the Sampling section above.
 
+---
+## Citation
 
+If you find our work helpful for your research, please consider citing our paper:
 
-
+```bibtex
+@article{chen2024fast,
+  title={Fast sampling via discrete non-markov diffusion models with predetermined transition time},
+  author={Chen, Zixiang and Yuan, Huizhuo and Li, Yongqian and Kou, Yiwen and Zhang, Junkai and Gu, Quanquan},
+  journal={Advances in Neural Information Processing Systems},
+  volume={37},
+  pages={106870--106905},
+  year={2024}
+}
+```
 
 
